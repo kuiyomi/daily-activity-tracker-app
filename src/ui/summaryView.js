@@ -8,6 +8,7 @@ import '../version.js';
 import { ICONS } from './icons.js';
 
 const APP_VERSION = self.APP_VERSION;
+const APP_NAME = self.APP_NAME || 'Agenda';
 
 /**
  * Mounts the summary view into `root`.
@@ -38,7 +39,7 @@ export function mountSummaryView(root) {
         </div>
 
         <footer class="app-version-footer">
-          <p>Agenda</p>
+          <p>${APP_NAME}</p>
           <p class="version-code">Versão ${APP_VERSION}</p>
         </footer>
       </main>

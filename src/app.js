@@ -9,6 +9,32 @@ import { mountDayDetailView } from './ui/dayDetailView.js';
 import { mountActivitiesView } from './ui/activitiesView.js';
 import { mountSummaryView } from './ui/summaryView.js';
 import { ICONS } from './ui/icons.js';
+import './version.js';
+
+const APP_NAME = self.APP_NAME || 'Agenda';
+
+// Enforce APP_NAME on document title and iOS home screen meta tag
+document.title = APP_NAME;
+const appleTitleMeta = document.querySelector('meta[name="apple-mobile-web-app-title"]');
+if (appleTitleMeta) {
+  appleTitleMeta.setAttribute('content', APP_NAME);
+}
+
+// Dynamically keep manifest name and short_name bound to APP_NAME
+const manifestLink = document.querySelector('link[rel="manifest"]');
+if (manifestLink) {
+  fetch(manifestLink.href)
+    .then((res) => res.json())
+    .then((manifest) => {
+      if (manifest.name !== APP_NAME || manifest.short_name !== APP_NAME) {
+        manifest.name = APP_NAME;
+        manifest.short_name = APP_NAME;
+        const blob = new Blob([JSON.stringify(manifest)], { type: 'application/manifest+json' });
+        manifestLink.href = URL.createObjectURL(blob);
+      }
+    })
+    .catch(() => {});
+}
 
 const root = document.getElementById('app');
 

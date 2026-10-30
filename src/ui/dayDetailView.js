@@ -11,6 +11,8 @@ import {
 } from '../storage/storage.js';
 import { renderIconGlyph } from './icons.js';
 
+import '../version.js';
+
 /**
  * Mounts the day-detail screen into `root`.
  *
@@ -29,15 +31,16 @@ export async function mountDayDetailView(root, dateStr, { onBack, onManageActivi
 
   // Capitalise only the first letter: "Sexta-feira, 30 de outubro de 2026"
   const heading = formatted.charAt(0).toUpperCase() + formatted.slice(1);
+  const appName = self.APP_NAME || 'Agenda';
 
   root.innerHTML = `
     <div class="screen-view day-detail-screen">
       <header class="ios-nav-bar ios-nav-bar--with-back">
-        <button class="ios-back-btn" id="btn-back" aria-label="Voltar para o calendário">
+        <button class="ios-back-btn" id="btn-back" aria-label="Voltar para ${appName}">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
             <polyline points="15 18 9 12 15 6"></polyline>
           </svg>
-          <span>Calendário</span>
+          <span>${appName}</span>
         </button>
       </header>
 
