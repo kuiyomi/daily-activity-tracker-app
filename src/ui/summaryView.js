@@ -1,9 +1,13 @@
 /**
  * summaryView.js – Summary screen placeholder (RF10).
  * Displays monthly stats placeholder with Phosphor chart-bar icon and app version footer.
+ * Reads self.APP_VERSION after side-effect import of src/version.js (single source of truth).
  */
 
+import '../version.js';
 import { ICONS } from './icons.js';
+
+const APP_VERSION = self.APP_VERSION;
 
 /**
  * Mounts the summary view into `root`.
@@ -35,7 +39,7 @@ export function mountSummaryView(root) {
 
         <footer class="app-version-footer">
           <p>Calendário do Pai</p>
-          <p class="version-code">Versão 0.1.0</p>
+          <p class="version-code">Versão ${APP_VERSION}</p>
         </footer>
       </main>
     </div>

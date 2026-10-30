@@ -2,10 +2,14 @@
  * sw.js – Service Worker for "Meu calendário" (PWA).
  * Provides full offline capability and instantaneous cache-first loading.
  *
+ * Version is loaded dynamically from src/version.js via importScripts().
  * All URLs use relative paths to support GitHub Pages subpath deployment (/repo-name/).
  */
 
-const APP_VERSION = '0.1.0';
+importScripts('./src/version.js');
+
+// APP_VERSION is set on self by src/version.js (single source of truth)
+const APP_VERSION = self.APP_VERSION;
 const CACHE_NAME = `meu-calendario-v${APP_VERSION}`;
 
 const PRECACHE_ASSETS = [
@@ -13,6 +17,7 @@ const PRECACHE_ASSETS = [
   './index.html',
   './manifest.webmanifest',
   './src/styles.css',
+  './src/version.js',
   './src/app.js',
   './src/storage/storage.js',
   './src/logic/dateUtils.js',

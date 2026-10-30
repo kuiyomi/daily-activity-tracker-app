@@ -4,7 +4,8 @@
   "description": "Calendário pessoal PWA para iPhone",
   "type": "module",
   "scripts": {
-    "test": "node tests/dateUtils.test.js && node tests/activityLogic.test.js"
+    "test": "node tests/dateUtils.test.js && node tests/activityLogic.test.js",
+    "version:sync": "node scripts/sync-version.js"
   },
   "engines": {
     "node": ">=18"

@@ -13,26 +13,34 @@ Aplicativo pessoal de calendário e acompanhamento de atividades desenvolvido es
 
 ## Como fazer release (atualização de versão)
 
-Quando for lançar uma nova versão do app, atualize o número de versão nos seguintes locais:
+A versão tem **um único local de verdade**: [`src/version.js`](file:///Users/kmny/Documents/calendar-app/src/version.js).
 
-1. **[`sw.js`](file:///Users/kmny/Documents/calendar-app/sw.js)**:
-   Altere a constante `APP_VERSION`:
+### Passos para lançar uma nova versão
+
+1. **Edite `src/version.js`** e atualize a atribuição `self.APP_VERSION`:
    ```javascript
-   const APP_VERSION = '0.2.0'; // Altere aqui
+   self.APP_VERSION = '0.2.0'; // ← apenas aqui
    ```
-   *Isto altera a chave de cache (`meu-calendario-v0.2.0`), acionando o download dos novos arquivos.*
+   - O footer da tela **Resumo** lê esse valor via import de efeito colateral (`import '../version.js'`).
+   - O **Service Worker** lê esse valor diretamente via `importScripts('./src/version.js')`.  
+     Mudar a versão altera o nome do cache (`meu-calendario-v0.2.0`), forçando o
+     download dos novos arquivos no próximo acesso.
 
-2. **[`package.json`](file:///Users/kmny/Documents/calendar-app/package.json)**:
-   Altere o campo `"version"`:
-   ```json
-   "version": "0.2.0"
+2. **Sincronize o `package.json`** executando:
+   ```bash
+   npm run version:sync
+   ```
+   Isso atualiza o campo `"version"` do `package.json` para igualar `src/version.js`.
+
+3. **Faça o commit e o push** normalmente:
+   ```bash
+   git add src/version.js package.json
+   git commit -m "chore: bump version to 0.2.0"
+   git push
    ```
 
-3. **[`src/ui/summaryView.js`](file:///Users/kmny/Documents/calendar-app/src/ui/summaryView.js)**:
-   Atualize o texto do rodapé na tela Resumo:
-   ```html
-   <p class="version-code">Versão 0.2.0</p>
-   ```
+> **Não é necessário** editar `sw.js`, `summaryView.js` ou qualquer outro arquivo
+> para atualizar a versão — o `src/version.js` propaga automaticamente.
 
 ---
 
@@ -57,9 +65,9 @@ Quando for lançar uma nova versão do app, atualize o número de versão nos se
 
 O aplicativo utiliza `self.skipWaiting()` e `clients.claim()` no Service Worker:
 
-1. Com o app aberto e com o Service Worker ativo, altere a versão em `sw.js` (por exemplo, de `'0.1.0'` para `'0.1.1'`) e faça uma alteração visual em `src/styles.css` ou em algum arquivo.
+1. Com o app aberto e com o Service Worker ativo, altere a versão em `src/version.js` (por exemplo, de `'0.1.0'` para `'0.1.1'`) e faça uma alteração visual em `src/styles.css` ou em algum arquivo. Execute `npm run version:sync` para manter o `package.json` em sincro.
 2. Na próxima vez que o app for aberto (ou recarregado):
-   - O navegador detecta que o arquivo `sw.js` foi alterado byte a byte no servidor.
+   - O navegador detecta que o arquivo `sw.js` foi alterado byte a byte no servidor (pois `src/version.js` — importado por ele — mudou).
    - O novo Service Worker é instalado em segundo plano, chama `skipWaiting()` e ativa-se imediatamente.
    - Durante o evento `activate`, o `clients.claim()` assume o controle e apaga o cache antigo (`meu-calendario-v0.1.0`), substituindo-o pelo novo (`meu-calendario-v0.1.1`).
    - Na abertura seguinte do app, o usuário já vê a versão nova sem precisar limpar cache ou fazer qualquer ação manual.
