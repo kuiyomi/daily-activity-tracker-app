@@ -5,5 +5,5 @@
  * contexts (sw.js via importScripts) and module contexts (side-effect import).
  */
 
-self.APP_VERSION = '0.2.0';
+self.APP_VERSION = '0.2.1';
 self.APP_NAME = 'Agenda';
