@@ -37,7 +37,7 @@ export function mountCalendarView(root, { onDaySelect }) {
   root.innerHTML = `
     <div class="screen-view calendar-screen">
       <header class="ios-nav-bar ios-nav-bar--with-action">
-        <h1 class="ios-large-title">${self.APP_NAME || 'Agenda'}</h1>
+        <h1 class="ios-large-title">${'Calendário'}</h1>
         <button class="ios-nav-action-btn" id="btn-today" aria-label="Voltar para o mês atual" style="display: none;">
           Hoje
         </button>
