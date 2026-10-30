@@ -378,20 +378,16 @@ body {
   line-height: 1.35;
 }
 
-.inset-row-segmented {
-  padding: 6px 8px;
-  min-height: 48px;
-}
-
-.inset-row-segmented:active {
-  background-color: var(--card-bg);
+.segmented-control-track-wrapper {
+  margin: 0 1rem;
+  background-color: var(--segmented-bg);
+  border-radius: 9px;
+  padding: 2px;
+  box-sizing: border-box;
 }
 
 .ios-segmented-control {
   display: flex;
-  background-color: var(--segmented-bg);
-  border-radius: 9px;
-  padding: 2px;
   width: 100%;
   box-sizing: border-box;
 }
@@ -404,12 +400,15 @@ body {
   font-family: inherit;
   font-size: 0.9375rem;
   font-weight: 500;
-  padding: 8px 6px;
-  min-height: 36px;
+  padding: 10px 8px;
+  min-height: 44px;
   border-radius: 7px;
   cursor: pointer;
   transition: background-color 150ms ease, box-shadow 150ms ease, font-weight 150ms ease;
   touch-action: manipulation;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   text-align: center;
 }
 
@@ -419,7 +418,7 @@ body {
 
 .ios-segment-btn.active {
   background-color: var(--segmented-thumb);
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12), 0 1px 2px rgba(0, 0, 0, 0.08);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.12), 0 1px 2px rgba(0, 0, 0, 0.08);
   font-weight: 600;
 }
 
@@ -647,6 +646,221 @@ body {
   opacity: 1;
 }
 
+/* ── Day Detail: Choveu & Notes (RF06, RF09) ──────────────── */
+.toggle-row {
+  justify-content: space-between;
+  cursor: pointer;
+}
+
+.toggle-row-left {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+}
+
+.toggle-label-title {
+  font-size: 1.0625rem;
+  color: var(--text-primary);
+  font-weight: 400;
+}
+
+.notes-row {
+  padding: 0.75rem 1rem;
+  min-height: 80px;
+}
+
+.notes-row-content {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.notes-label {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: -0.01em;
+}
+
+.ios-textarea {
+  width: 100%;
+  border: none;
+  background: transparent;
+  font-family: inherit;
+  font-size: 1rem; /* >= 16px to prevent iOS auto-zoom */
+  color: var(--text-primary);
+  resize: vertical;
+  min-height: 60px;
+  line-height: 1.4;
+  outline: none;
+  padding: 0;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.ios-textarea::placeholder {
+  color: var(--text-tertiary);
+}
+
+/* ── Activity Row Subtitle & Muscle Chips (RF05) ───────────── */
+.activity-row-label {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 2px;
+}
+
+.activity-subtitle-text {
+  font-size: 0.8125rem;
+  color: var(--text-secondary);
+  font-weight: 400;
+  line-height: 1.2;
+}
+
+.muscle-chips-container {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 6px 1rem 14px calc(1rem + 22px + 0.85rem);
+  background-color: var(--card-bg);
+  position: relative;
+}
+
+.muscle-chips-container.hidden {
+  display: none;
+}
+
+.muscle-chip {
+  border: 1px solid var(--separator);
+  background: var(--page-bg);
+  color: var(--text-primary);
+  border-radius: 22px;
+  min-height: 44px;
+  min-width: 44px;
+  padding: 8px 16px;
+  font-size: 0.875rem;
+  font-family: inherit;
+  font-weight: 500;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background-color 150ms ease, color 150ms ease, border-color 150ms ease, transform 100ms ease;
+  touch-action: manipulation;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.muscle-chip:active {
+  opacity: 0.7;
+  transform: scale(0.96);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .muscle-chip:active {
+    transform: none;
+  }
+}
+
+.muscle-chip.selected {
+  background-color: var(--ios-blue);
+  color: #ffffff;
+  border-color: var(--ios-blue);
+  font-weight: 600;
+}
+
+/* ── Muscle Groups Management Screen (RF05) ────────────────── */
+.add-mg-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  padding: 4px 1rem;
+}
+
+.mg-input {
+  flex: 1;
+  min-height: 44px;
+  border: none;
+  background: transparent;
+  font-size: 1rem;
+  color: var(--text-primary);
+  outline: none;
+}
+
+.btn-add-mg {
+  flex-shrink: 0;
+  min-height: 44px;
+  padding: 0 12px;
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--ios-blue);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.btn-add-mg:active {
+  opacity: 0.5;
+}
+
+.mg-item-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.mg-item-name {
+  font-size: 1.0625rem;
+  color: var(--text-primary);
+  font-weight: 500;
+}
+
+.mg-actions {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+}
+
+.mg-action-btn {
+  background: transparent;
+  border: none;
+  font-size: 0.9375rem;
+  min-height: 44px;
+  padding: 0 10px;
+  cursor: pointer;
+  touch-action: manipulation;
+  font-family: inherit;
+}
+
+.mg-action-btn:active {
+  opacity: 0.5;
+}
+
+.mg-rename-btn {
+  color: var(--ios-blue);
+}
+
+.mg-remove-btn {
+  color: var(--ios-red);
+}
+
+.nav-row {
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.inset-row-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 /* ── Activity Icon Badge (iOS Settings Style) ──────────────── */
 .activity-icon-badge {
   width: 32px;
@@ -669,12 +883,6 @@ body {
 .activity-icon-badge .activity-emoji-fallback {
   font-size: 1.15rem;
   line-height: 1;
-}
-
-.activity-row-label {
-  flex: 1;
-  display: flex;
-  align-items: center;
 }
 
 .activity-name-text {
@@ -967,7 +1175,7 @@ body {
   cursor: pointer;
 }
 
-/* iOS Switch Style */
+/* iOS Switch Style – variant A: <input type="checkbox" class="ios-switch"> (activity form) */
 .toggle-row {
   justify-content: space-between;
   cursor: pointer;
@@ -1011,6 +1219,64 @@ body {
 
 .ios-switch:checked::after {
   transform: translateX(20px);
+}
+
+/* iOS Switch Style – variant B: <div class="ios-switch"><input type="checkbox" hidden/><span class="ios-switch-slider"></span></div> */
+div.ios-switch {
+  appearance: unset;
+  -webkit-appearance: unset;
+  display: inline-block;
+  cursor: pointer;
+}
+
+div.ios-switch input[type="checkbox"] {
+  position: absolute;
+  opacity: 0;
+  width: 0;
+  height: 0;
+  pointer-events: none;
+}
+
+.ios-switch-slider {
+  display: block;
+  width: 51px;
+  height: 31px;
+  background-color: var(--text-tertiary);
+  border-radius: 31px;
+  position: relative;
+  transition: background-color 200ms ease;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.ios-switch-slider::after {
+  content: "";
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 27px;
+  height: 27px;
+  background-color: #ffffff;
+  border-radius: 50%;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+  transition: transform 200ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+div.ios-switch input[type="checkbox"]:checked ~ .ios-switch-slider {
+  background-color: var(--ios-green);
+}
+
+div.ios-switch input[type="checkbox"]:checked ~ .ios-switch-slider::after {
+  transform: translateX(20px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ios-switch,
+  .ios-switch-slider,
+  .ios-switch::after,
+  .ios-switch-slider::after {
+    transition: none;
+  }
 }
 
 /* Delete Row */

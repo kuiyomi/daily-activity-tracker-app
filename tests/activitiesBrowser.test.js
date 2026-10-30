@@ -92,7 +92,7 @@ server.listen(0, '127.0.0.1', async () => {
     const resetIndexedDB = async () => {
       await page.evaluate(() => {
         return new Promise((resolve, reject) => {
-          const req = indexedDB.open('DadsCalendarDB', 1);
+          const req = indexedDB.open('DadsCalendarDB');
           req.onsuccess = () => {
             const db = req.result;
             const tx = db.transaction(['activities'], 'readwrite');
