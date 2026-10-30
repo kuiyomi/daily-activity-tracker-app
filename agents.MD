@@ -76,3 +76,8 @@ index.html  manifest.webmanifest  sw.js  /src (ui, logic, storage)  /tests  /ico
 - New screens and interactions must follow the motion rules (subtle, transform and
   opacity only, respecting prefers-reduced-motion).
 - After every change, state how you verified it (tests run, browser checks).
+- Every feature or fix meant for deployment ends with a version bump
+  (patch for fixes, minor for features) via the documented release process.
+  Without a bump, the installed app won't update.
+- When changing UI, verify the rendered result in a headless browser with seeded
+  data, not only with unit tests.
