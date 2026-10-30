@@ -1,0 +1,12 @@
+{
+  "name": "calendario-do-pai",
+  "version": "0.1.0",
+  "description": "Calendário pessoal PWA para iPhone",
+  "type": "module",
+  "scripts": {
+    "test": "node tests/dateUtils.test.js"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
