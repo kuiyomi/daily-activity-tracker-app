@@ -40,6 +40,7 @@ const PALETTE_SVG = `
 export function mountActivitiesView(root, { onBack, onFormOpen, onFormClose } = {}) {
   let isEditing = false;
   let currentActivity = null;
+  let currentActivities = [];
 
   async function renderList() {
     isEditing = false;
@@ -47,12 +48,14 @@ export function mountActivitiesView(root, { onBack, onFormOpen, onFormClose } = 
 
     if (onFormClose) onFormClose();
 
-    let activities = [];
     try {
-      activities = await getActivities();
+      currentActivities = await getActivities();
     } catch (err) {
       console.error('Failed to load activities', err);
+      currentActivities = [];
     }
+
+    const activities = currentActivities;
 
     root.innerHTML = `
       <div class="screen-view activities-screen">
@@ -122,16 +125,16 @@ export function mountActivitiesView(root, { onBack, onFormOpen, onFormClose } = 
   }
 
   function renderForm(activityToEdit) {
-    isEditing = Boolean(activityToEdit);
-    currentActivity = activityToEdit;
+    try {
+      isEditing = Boolean(activityToEdit);
+      currentActivity = activityToEdit;
 
-    // Hide tab bar when editing / creating an activity
-    if (onFormOpen) onFormOpen();
-
-    const initialName = activityToEdit ? activityToEdit.name : '';
-    let selectedIconKey = activityToEdit ? normalizeIconKey(activityToEdit.icon) : ACTIVITY_ICON_KEYS[0];
-    let selectedColor = activityToEdit ? activityToEdit.color : getNextAvailablePresetColor(activities, PRESET_COLORS);
-    const initialMuscle = activityToEdit ? Boolean(activityToEdit.usesMuscleGroups) : false;
+      const initialName = activityToEdit ? activityToEdit.name : '';
+      let selectedIconKey = activityToEdit ? normalizeIconKey(activityToEdit.icon) : ACTIVITY_ICON_KEYS[0];
+      let selectedColor = activityToEdit
+        ? activityToEdit.color
+        : getNextAvailablePresetColor(currentActivities, PRESET_COLORS);
+      const initialMuscle = activityToEdit ? Boolean(activityToEdit.usesMuscleGroups) : false;
 
     // Check if selectedColor is one of the presets
     const isPreset = PRESET_COLORS.some((c) => c.toLowerCase() === selectedColor.toLowerCase());
@@ -407,7 +410,36 @@ export function mountActivitiesView(root, { onBack, onFormOpen, onFormClose } = 
         }
       });
     }
+
+    // Hide tab bar only after the form has rendered successfully
+    if (onFormOpen) onFormOpen();
+  } catch (err) {
+    console.error('Falha ao abrir formulário de atividade:', err);
+    // Restore tab bar if anything throws
+    if (onFormClose) onFormClose();
+
+    // Show friendly pt-BR message instead of a blank screen
+    root.innerHTML = `
+      <div class="screen-view">
+        <header class="ios-nav-bar">
+          <h1 class="ios-large-title">Atividades</h1>
+        </header>
+        <main class="screen-content">
+          <div class="inset-section" style="padding: 24px 16px; text-align: center;">
+            <p class="empty-state-text" style="margin-bottom: 16px;">
+              Não foi possível abrir o formulário. Ocorreu um problema inesperado.
+            </p>
+            <button type="button" class="ios-nav-action-btn" id="btn-form-error-back" style="display: inline-block; padding: 10px 20px;">
+              Voltar para a lista
+            </button>
+          </div>
+        </main>
+      </div>
+    `;
+
+    root.querySelector('#btn-form-error-back')?.addEventListener('click', () => renderList());
   }
+}
 
   // Initial list view
   renderList();
