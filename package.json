@@ -1,6 +1,6 @@
 {
   "name": "calendario-do-pai",
-  "version": "0.2.2",
+  "version": "0.2.3",
   "description": "Agenda pessoal PWA para iPhone",
   "type": "module",
   "scripts": {
