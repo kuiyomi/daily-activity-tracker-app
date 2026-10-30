@@ -8,6 +8,7 @@ import { mountCalendarView } from './ui/calendarView.js';
 import { mountDayDetailView } from './ui/dayDetailView.js';
 import { mountActivitiesView } from './ui/activitiesView.js';
 import { mountSummaryView } from './ui/summaryView.js';
+import { mountSettingsView } from './ui/settingsView.js';
 import { ICONS } from './ui/icons.js';
 import './version.js';
 
@@ -51,6 +52,10 @@ const TAB_ICONS = {
     outline: ICONS['chart-bar'],
     fill: ICONS['chart-bar-fill'],
   },
+  ajustes: {
+    outline: ICONS['gear-six'],
+    fill: ICONS['gear-six-fill'],
+  },
 };
 
 // ── Build shell with bottom tab bar ──────────────────────────────────────────
@@ -69,9 +74,14 @@ root.innerHTML = `
         <span class="tab-label">Atividades</span>
       </button>
 
-      <button class="ios-tab-item" data-tab="resumo" aria-label="Aba Resumo">
+      <button class="ios-tab-item hidden" data-tab="resumo" aria-label="Aba Resumo" style="display: none;" aria-hidden="true">
         <span class="tab-icon-wrap" id="tab-icon-resumo">${TAB_ICONS.resumo.outline}</span>
         <span class="tab-label">Resumo</span>
+      </button>
+
+      <button class="ios-tab-item" data-tab="ajustes" aria-label="Aba Ajustes">
+        <span class="tab-icon-wrap" id="tab-icon-ajustes">${TAB_ICONS.ajustes.outline}</span>
+        <span class="tab-label">Ajustes</span>
       </button>
     </nav>
   </div>
@@ -167,6 +177,12 @@ function showSummary() {
   mountSummaryView(viewContainer);
 }
 
+function showSettings() {
+  setTabBarVisible(true);
+  setActiveTab('ajustes');
+  mountSettingsView(viewContainer);
+}
+
 // ── Tab click handling ───────────────────────────────────────────────────────
 tabButtons.forEach((btn) => {
   btn.addEventListener('click', () => {
@@ -177,6 +193,8 @@ tabButtons.forEach((btn) => {
       showActivities();
     } else if (tab === 'resumo') {
       showSummary();
+    } else if (tab === 'ajustes') {
+      showSettings();
     }
   });
 });

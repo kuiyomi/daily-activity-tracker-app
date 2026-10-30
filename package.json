@@ -1,11 +1,11 @@
 {
   "name": "calendario-do-pai",
-  "version": "0.2.4",
+  "version": "0.3.0",
   "description": "Agenda pessoal PWA para iPhone",
   "type": "module",
   "scripts": {
-    "test": "node tests/dateUtils.test.js && node tests/activityLogic.test.js",
-    "test:browser": "node tests/activitiesBrowser.test.js",
+    "test": "node tests/dateUtils.test.js && node tests/activityLogic.test.js && node tests/theme.test.js",
+    "test:browser": "node tests/activitiesBrowser.test.js && node tests/settingsBrowser.test.js",
     "version:sync": "node scripts/sync-version.js"
   },
   "engines": {

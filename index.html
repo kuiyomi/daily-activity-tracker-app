@@ -22,8 +22,25 @@
   <link rel="apple-touch-icon" sizes="180x180" href="./icons/icon-180.png" />
 
   <!-- Theme color for light and dark mode -->
-  <meta name="theme-color" content="#F2F2F7" media="(prefers-color-scheme: light)" />
-  <meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)" />
+  <meta name="theme-color" content="#F2F2F7" media="(prefers-color-scheme: light)" data-scheme="light" />
+  <meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)" data-scheme="dark" />
+
+  <!-- Early theme application to avoid flash of wrong theme -->
+  <script>
+    (function () {
+      try {
+        var theme = localStorage.getItem('theme-preference') || 'auto';
+        if (theme === 'light' || theme === 'dark') {
+          document.documentElement.setAttribute('data-theme', theme);
+          var metaLight = document.querySelector('meta[data-scheme="light"]');
+          var metaDark = document.querySelector('meta[data-scheme="dark"]');
+          var hex = theme === 'dark' ? '#000000' : '#F2F2F7';
+          if (metaLight) { metaLight.setAttribute('content', hex); metaLight.removeAttribute('media'); }
+          if (metaDark) { metaDark.setAttribute('content', hex); metaDark.removeAttribute('media'); }
+        }
+      } catch (e) {}
+    })();
+  </script>
 
   <link rel="stylesheet" href="./src/styles.css" />
   <script src="./src/version.js"></script>
