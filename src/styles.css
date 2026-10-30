@@ -942,3 +942,52 @@ body {
   color: var(--text-tertiary);
   font-size: 0.75rem;
 }
+
+/* ── 15. iOS-style Update Notification Banner ──────────────── */
+.ios-update-banner {
+  position: fixed;
+  top: calc(var(--safe-top) + 12px);
+  left: 1rem;
+  right: 1rem;
+  z-index: 9999;
+  background-color: var(--ios-blue);
+  color: #ffffff;
+  padding: 0.75rem 1rem;
+  border-radius: 12px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  font-size: 0.95rem;
+  font-weight: 600;
+  cursor: pointer;
+  touch-action: manipulation;
+  min-height: 44px;
+  animation: banner-slide-down 0.25s ease-out;
+  transition: opacity 0.15s ease, transform 0.15s ease;
+}
+
+.ios-update-banner:active {
+  opacity: 0.85;
+  transform: scale(0.98);
+}
+
+@keyframes banner-slide-down {
+  from {
+    transform: translateY(-120%);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ios-update-banner {
+    animation: none;
+    transition: none;
+  }
+}
+

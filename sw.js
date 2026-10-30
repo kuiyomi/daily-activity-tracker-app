@@ -2,15 +2,19 @@
  * sw.js – Service Worker for "Agenda" (PWA).
  * Provides full offline capability and instantaneous cache-first loading.
  *
- * Version and name are loaded dynamically from src/version.js via importScripts().
+ * SW_VERSION is stamped by scripts/sync-version.js so every release changes sw.js's own bytes.
+ * Version and name are also loaded dynamically from src/version.js via importScripts().
  * All URLs use relative paths to support GitHub Pages subpath deployment (/repo-name/).
  */
+
+const SW_VERSION = '0.2.0';
 
 importScripts('./src/version.js');
 
 // APP_VERSION and APP_NAME are set on self by src/version.js (single source of truth)
-const APP_VERSION = self.APP_VERSION;
-const CACHE_NAME = `agenda-v${APP_VERSION}`;
+const APP_VERSION = typeof SW_VERSION !== 'undefined' ? SW_VERSION : self.APP_VERSION;
+const APP_NAME = self.APP_NAME || 'Agenda';
+const CACHE_NAME = `agenda-v${SW_VERSION}`;
 
 const PRECACHE_ASSETS = [
   './',
@@ -32,12 +36,29 @@ const PRECACHE_ASSETS = [
   './icons/icon-512.png',
 ];
 
-// ── Install: Precache app shell and immediately skip waiting ─────────────────
+// ── Install: Precache app shell using cache: 'reload' and skip waiting ────────
 self.addEventListener('install', (event) => {
   self.skipWaiting();
   event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => {
-      return cache.addAll(PRECACHE_ASSETS);
+    caches.open(CACHE_NAME).then(async (cache) => {
+      const requests = PRECACHE_ASSETS.map(
+        (url) => new Request(url, { cache: 'reload' })
+      );
+
+      await Promise.all(
+        requests.map(async (req) => {
+          try {
+            const response = await fetch(req);
+            if (!response.ok) {
+              throw new Error(`HTTP ${response.status} ${response.statusText}`);
+            }
+            await cache.put(req, response);
+          } catch (err) {
+            console.error(`[SW Precache] Falha ao baixar e armazenar no cache: ${req.url}`, err);
+            throw err;
+          }
+        })
+      );
     })
   );
 });

@@ -123,13 +123,41 @@ function showDayDetail(dateStr) {
   });
 }
 
+let isEditFormOpen = false;
+
+function isAnyFormOpen() {
+  return isEditFormOpen || Boolean(document.querySelector('#activity-form, .ios-form, form'));
+}
+
+function showUpdateBanner() {
+  if (document.getElementById('sw-update-banner')) return;
+
+  const banner = document.createElement('div');
+  banner.id = 'sw-update-banner';
+  banner.className = 'ios-update-banner';
+  banner.setAttribute('role', 'alert');
+  banner.innerHTML = `<span>Nova versão disponível. Toque para atualizar.</span>`;
+
+  banner.addEventListener('click', () => {
+    window.location.reload();
+  });
+
+  document.body.appendChild(banner);
+}
+
 function showActivities() {
   setTabBarVisible(true);
   setActiveTab('atividades');
   mountActivitiesView(viewContainer, {
     onBack: () => showCalendar(),
-    onFormOpen: () => setTabBarVisible(false),  // Hide tab bar on the activity form
-    onFormClose: () => setTabBarVisible(true), // Restore tab bar when exiting form
+    onFormOpen: () => {
+      isEditFormOpen = true;
+      setTabBarVisible(false);  // Hide tab bar on the activity form
+    },
+    onFormClose: () => {
+      isEditFormOpen = false;
+      setTabBarVisible(true);   // Restore tab bar when exiting form
+    },
   });
 }
 
@@ -158,11 +186,51 @@ showCalendar();
 
 // ── Register Service Worker for Offline Use (PWA) ────────────────────────────
 if ('serviceWorker' in navigator) {
+  let refreshing = false;
+  let hadController = Boolean(navigator.serviceWorker.controller);
+
+  // When a new SW takes control, reload once or show banner if editing
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    // If there was no previous controller, this is the initial install taking control
+    if (!hadController) {
+      hadController = true;
+      return;
+    }
+
+    if (refreshing) return;
+
+    if (isAnyFormOpen()) {
+      showUpdateBanner();
+      return;
+    }
+
+    refreshing = true;
+    window.location.reload();
+  });
+
   window.addEventListener('load', async () => {
     try {
-      await navigator.serviceWorker.register('./sw.js', { scope: './' });
+      const registration = await navigator.serviceWorker.register('./sw.js', {
+        scope: './',
+        updateViaCache: 'none',
+      });
+
+      // Check for SW updates on every app launch
+      registration.update().catch((err) => {
+        console.warn('Falha ao verificar atualização do service worker no início:', err);
+      });
+
+      // Check for SW updates whenever app becomes visible again
+      document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible') {
+          registration.update().catch((err) => {
+            console.warn('Falha ao verificar atualização do service worker no visibilitychange:', err);
+          });
+        }
+      });
     } catch (err) {
       console.warn('Falha ao registrar o service worker:', err);
     }
   });
 }
+

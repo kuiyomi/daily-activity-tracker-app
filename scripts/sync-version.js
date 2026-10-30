@@ -1,11 +1,11 @@
 #!/usr/bin/env node
 
 /**
- * sync-version.js – Keeps package.json and manifest.webmanifest in sync with the single source of truth (src/version.js).
+ * sync-version.js – Keeps package.json, manifest.webmanifest, and sw.js in sync with the single source of truth (src/version.js).
  *
  * Usage:
- *   node scripts/sync-version.js             # Updates package.json and manifest from src/version.js
- *   node scripts/sync-version.js --from-pkg  # Updates src/version.js from package.json
+ *   node scripts/sync-version.js             # Updates package.json, manifest, and sw.js from src/version.js
+ *   node scripts/sync-version.js --from-pkg  # Updates src/version.js and sw.js from package.json
  */
 
 import fs from 'fs';
@@ -18,12 +18,32 @@ const rootDir = path.resolve(__dirname, '..');
 const versionJsPath = path.join(rootDir, 'src', 'version.js');
 const pkgPath = path.join(rootDir, 'package.json');
 const manifestPath = path.join(rootDir, 'manifest.webmanifest');
+const swPath = path.join(rootDir, 'sw.js');
 
 const args = process.argv.slice(2);
 const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf8'));
 
+function syncSwFile(version) {
+  if (!fs.existsSync(swPath)) return;
+  const swContent = fs.readFileSync(swPath, 'utf8');
+  const swVersionMatch = swContent.match(/const\s+SW_VERSION\s*=\s*['"]([^'"]+)['"];/);
+
+  if (swVersionMatch && swVersionMatch[1] !== version) {
+    const updatedSw = swContent.replace(
+      /const\s+SW_VERSION\s*=\s*['"][^'"]+['"];/,
+      `const SW_VERSION = '${version}';`
+    );
+    fs.writeFileSync(swPath, updatedSw, 'utf8');
+    console.log(`Updated sw.js SW_VERSION to ${version}`);
+  } else if (!swVersionMatch) {
+    console.warn('Warning: Could not find const SW_VERSION in sw.js');
+  } else {
+    console.log(`sw.js is already in sync with SW_VERSION (${version})`);
+  }
+}
+
 if (args.includes('--from-pkg')) {
-  // Sync from package.json to src/version.js
+  // Sync from package.json to src/version.js and sw.js
   const existingContent = fs.existsSync(versionJsPath) ? fs.readFileSync(versionJsPath, 'utf8') : '';
   const appNameMatch = existingContent.match(/APP_NAME\s*=\s*['"]([^'"]+)['"]/);
   const appName = appNameMatch ? appNameMatch[1] : 'Agenda';
@@ -40,8 +60,9 @@ self.APP_NAME = '${appName}';
 `;
   fs.writeFileSync(versionJsPath, newContent, 'utf8');
   console.log(`Synced src/version.js to package.json version: ${pkg.version}`);
+  syncSwFile(pkg.version);
 } else {
-  // Default: Sync from src/version.js to package.json and manifest.webmanifest
+  // Default: Sync from src/version.js to package.json, manifest.webmanifest, and sw.js
   const versionJsContent = fs.readFileSync(versionJsPath, 'utf8');
   const versionMatch = versionJsContent.match(/APP_VERSION\s*=\s*['"]([^'"]+)['"]/);
   const nameMatch = versionJsContent.match(/APP_NAME\s*=\s*['"]([^'"]+)['"]/);
@@ -79,4 +100,7 @@ self.APP_NAME = '${appName}';
       console.log(`manifest.webmanifest is already in sync with APP_NAME (${appName})`);
     }
   }
+
+  // Sync sw.js (stamps SW_VERSION directly into sw.js)
+  syncSwFile(version);
 }

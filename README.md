@@ -23,7 +23,28 @@ self.APP_NAME = 'Agenda';
 - **Manifesto & PWA**: O nome (`name` e `short_name`) é sincronizado com `self.APP_NAME` em `manifest.webmanifest`.
 - **iOS Safari**: O `<title>` e a meta tag `<meta name="apple-mobile-web-app-title">` utilizam `self.APP_NAME`.
 - **Interface e "Sobre"**: Os títulos principais e o rodapé da tela **Resumo** leem `self.APP_NAME` e `self.APP_VERSION`.
-- **Service Worker**: O cache atual utiliza o prefixo `agenda-v${APP_VERSION}` (ex: `agenda-v0.2.0`). Na ativação, o Service Worker limpa automaticamente caches de versões antigas e também remove quaisquer caches legados com prefixo `meu-calendario-*`.
+- **Service Worker (`sw.js`)**: O script `scripts/sync-version.js` carimba `const SW_VERSION = '...';` diretamente em `sw.js`. O nome do cache é derivado de `SW_VERSION` (`agenda-v${SW_VERSION}`). Na ativação, o Service Worker limpa caches de versões antigas e remove caches legados (`meu-calendario-*`).
+
+---
+
+## Fluxo de Atualização (Update Flow)
+
+Para garantir detecção imediata de novas versões mesmo com o cache HTTP do GitHub Pages (`max-age=600`):
+
+1. **Alteração de bytes em `sw.js`**:
+   O comando `npm run version:sync` reescreve a constante `SW_VERSION` no próprio `sw.js`. Como os bytes do próprio `sw.js` mudam, a checagem byte a byte do navegador sempre detecta a nova versão.
+2. **Registro com `{ updateViaCache: 'none' }`**:
+   O Service Worker é registrado com `updateViaCache: 'none'`, forçando o navegador a consultar a rede (sem cache HTTP) ao verificar atualizações do `sw.js` e de scripts importados via `importScripts()`.
+3. **Precache com `cache: 'reload'`**:
+   Durante a instalação, os assets do app shell são baixados usando objetos `Request(url, { cache: 'reload' })`, garantindo que os novos arquivos venham diretamente da rede e não do cache HTTP local. Se alguma URL falhar, ela é registrada explicitamente via `console.error`.
+4. **Verificação de atualização**:
+   `registration.update()` é disparado na inicialização do app e sempre que a aplicação se torna visível novamente (`visibilitychange`).
+5. **Transição de controle (`controllerchange`) e Proteção de Edição**:
+   Quando um novo Service Worker assume o controle (`clients.claim()`):
+   - Se o usuário **não estiver** com formulário aberto, a página recarrega automaticamente uma única vez (protegido contra loops).
+   - Se o usuário **estiver** com formulário aberto (ex: criando ou editando atividade), o recarregamento automático é suspenso para não perder dados digitados e um banner estilo iOS é exibido:  
+     *“Nova versão disponível. Toque para atualizar.”*  
+     Ao tocar no banner, a página é atualizada manualmente.
 
 ---
 
@@ -33,28 +54,24 @@ self.APP_NAME = 'Agenda';
 
 1. **Edite `src/version.js`** e atualize a atribuição `self.APP_VERSION`:
    ```javascript
-   self.APP_VERSION = '0.2.1'; // ← apenas aqui
+   self.APP_VERSION = '0.2.1'; // ← altere apenas aqui
    ```
-   - O footer da tela **Resumo** lê esse valor via import de efeito colateral (`import '../version.js'`).
-   - O **Service Worker** lê esse valor diretamente via `importScripts('./src/version.js')`.  
-     Mudar a versão altera o nome do cache (`agenda-v0.2.1`), forçando o
-     download dos novos arquivos no próximo acesso.
 
-2. **Sincronize o `package.json` e o `manifest.webmanifest`** executando:
+2. **Sincronize todos os arquivos** executando:
    ```bash
    npm run version:sync
    ```
-   Isso atualiza o campo `"version"` do `package.json` e os campos do manifesto para sincronizar com `src/version.js`.
+   Isso atualiza automaticamente:
+   - `package.json` (`"version"`)
+   - `manifest.webmanifest` (`name` e `short_name`)
+   - `sw.js` (carimba `const SW_VERSION = '0.2.1';` alterando os bytes do arquivo e a chave de cache `agenda-v0.2.1`)
 
-3. **Faça o commit e o push** normalmente:
+3. **Faça o commit e o push**:
    ```bash
-   git add src/version.js package.json manifest.webmanifest
+   git add src/version.js sw.js package.json manifest.webmanifest
    git commit -m "chore: bump version to 0.2.1"
    git push
    ```
-
-> **Não é necessário** editar `sw.js`, `summaryView.js` ou qualquer outro arquivo
-> para atualizar a versão — o `src/version.js` propaga automaticamente.
 
 ---
 
@@ -71,20 +88,7 @@ self.APP_NAME = 'Agenda';
    - No Chrome: Aba **Application** → **Service Workers** (verifique se o status está *Activated and running*).
    - Na aba **Network**, marque a opção **Offline** (ou desconecte o Wi-Fi / modo avião no iPhone).
 4. Recarregue a página ou navegue entre as abas:
-   - O aplicativo carrega instantaneamente do cache local, e todas as ações (marcar atividades, navegar pelos meses) continuam funcionando via IndexedDB.
-
----
-
-## Como testar o fluxo de atualização (Update Flow)
-
-O aplicativo utiliza `self.skipWaiting()` e `clients.claim()` no Service Worker:
-
-1. Com o app aberto e com o Service Worker ativo, altere a versão em `src/version.js` (por exemplo, de `'0.2.0'` para `'0.2.1'`) e faça uma alteração visual em `src/styles.css` ou em algum arquivo. Execute `npm run version:sync` para manter o `package.json` em sincro.
-2. Na próxima vez que o app for aberto (ou recarregado):
-   - O navegador detecta que o arquivo `sw.js` foi alterado byte a byte no servidor (pois `src/version.js` — importado por ele — mudou).
-   - O novo Service Worker é instalado em segundo plano, chama `skipWaiting()` e ativa-se imediatamente.
-   - Durante o evento `activate`, o `clients.claim()` assume o controle e apaga o cache antigo (`agenda-v0.2.0` bem como quaisquer caches `meu-calendario-*`), substituindo-o pelo novo (`agenda-v0.2.1`).
-   - Na abertura seguinte do app, o usuário já vê a versão nova sem precisar limpar cache ou fazer qualquer ação manual.
+   - O aplicativo carrega instantaneamente do cache local, e todas as ações continuam funcionando via IndexedDB.
 
 ---
 
