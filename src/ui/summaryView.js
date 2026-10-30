@@ -38,7 +38,7 @@ export function mountSummaryView(root) {
         </div>
 
         <footer class="app-version-footer">
-          <p>Calendário do Pai</p>
+          <p>Agenda</p>
           <p class="version-code">Versão ${APP_VERSION}</p>
         </footer>
       </main>
