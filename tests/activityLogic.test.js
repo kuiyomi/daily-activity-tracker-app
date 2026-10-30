@@ -12,6 +12,10 @@ import {
   toggleCompletionId,
   isActivityCompleted,
   extractCompletedDates,
+  groupCompletionsByDate,
+  getDayDotIndicators,
+  getNextAvailablePresetColor,
+  PRESET_COLORS,
   EMOJI_TO_ICON_KEY,
 } from '../src/logic/activityLogic.js';
 
@@ -126,6 +130,128 @@ describe('extractCompletedDates()', () => {
   assert(dates.has('2026-10-01'), 'contains 2026-10-01');
   assert(dates.has('2026-10-05'), 'contains 2026-10-05');
   assert(!dates.has('2026-10-02'), 'does not contain missing date');
+});
+
+describe('groupCompletionsByDate()', () => {
+  assertEqual(groupCompletionsByDate([]), {}, 'handles empty array');
+  assertEqual(groupCompletionsByDate(null), {}, 'handles null/undefined');
+
+  const records = [
+    { date: '2026-10-10', activityId: 'act_gym' },
+    { date: '2026-10-10', activityId: 'act_run' },
+    { date: '2026-10-10', activityId: 'act_gym' }, // duplicate
+    { date: '2026-10-11', activityId: 'act_read' },
+    null,
+    { invalid: true },
+  ];
+
+  const grouped = groupCompletionsByDate(records);
+  assertEqual(Object.keys(grouped).sort(), ['2026-10-10', '2026-10-11'], 'groups into exact dates');
+  assertEqual(grouped['2026-10-10'], ['act_gym', 'act_run'], 'deduplicates activity IDs on the same date');
+  assertEqual(grouped['2026-10-11'], ['act_read'], 'records single activity ID on date');
+});
+
+describe('getDayDotIndicators() - grouping, ordering, and overflow', () => {
+  const activities = [
+    { id: 'act_1', name: 'Atividade 1', color: '#007aff', createdAt: 1000 },
+    { id: 'act_2', name: 'Atividade 2', color: '#34c759', createdAt: 2000 },
+    { id: 'act_3', name: 'Atividade 3', color: '#ff9500', createdAt: 3000 },
+    { id: 'act_4', name: 'Atividade 4', color: '#ff2d55', createdAt: 4000 },
+    { id: 'act_5', name: 'Atividade 5', color: '#af52de', createdAt: 5000 },
+    { id: 'act_6', name: 'Atividade 6', color: '#5856d6', createdAt: 6000 },
+  ];
+
+  // 0 activities
+  const zero = getDayDotIndicators([], activities);
+  assertEqual(zero, { dots: [], hasOverflow: false, total: 0 }, 'zero completed activities yields no dots');
+
+  // 1 activity
+  const one = getDayDotIndicators(['act_2'], activities);
+  assertEqual(one, { dots: ['#34c759'], hasOverflow: false, total: 1 }, '1 completed activity has 1 colored dot');
+
+  // 3 activities in scrambled order -> must be ordered by activity creation order (createdAt)
+  const threeScrambled = getDayDotIndicators(['act_3', 'act_1', 'act_2'], activities);
+  assertEqual(
+    threeScrambled,
+    { dots: ['#007aff', '#34c759', '#ff9500'], hasOverflow: false, total: 3 },
+    'orders dots strictly by activity createdAt (act_1, act_2, act_3)'
+  );
+
+  // 4 activities -> exactly 4 dots, no overflow
+  const four = getDayDotIndicators(['act_4', 'act_2', 'act_1', 'act_3'], activities);
+  assertEqual(
+    four,
+    { dots: ['#007aff', '#34c759', '#ff9500', '#ff2d55'], hasOverflow: false, total: 4 },
+    '4 completed activities shows all 4 dots without overflow'
+  );
+
+  // 5 activities -> overflow: shows first 3 dots in creation order + hasOverflow = true
+  const five = getDayDotIndicators(['act_5', 'act_4', 'act_3', 'act_2', 'act_1'], activities);
+  assertEqual(
+    five,
+    { dots: ['#007aff', '#34c759', '#ff9500'], hasOverflow: true, total: 5 },
+    '5 completed activities shows 3 dots with overflow flag'
+  );
+
+  // 6 activities -> overflow: shows first 3 dots in creation order + hasOverflow = true
+  const six = getDayDotIndicators(['act_6', 'act_5', 'act_4', 'act_3', 'act_2', 'act_1'], activities);
+  assertEqual(
+    six,
+    { dots: ['#007aff', '#34c759', '#ff9500'], hasOverflow: true, total: 6 },
+    '6 completed activities shows 3 dots with overflow flag'
+  );
+
+  // Unknown or deleted activity ID is ignored gracefully
+  const withUnknown = getDayDotIndicators(['deleted_act', 'act_2'], activities);
+  assertEqual(
+    withUnknown,
+    { dots: ['#34c759'], hasOverflow: false, total: 1 },
+    'ignores deleted or unknown activity IDs'
+  );
+});
+
+describe('getNextAvailablePresetColor()', () => {
+  // Empty activity list -> 1st preset
+  assertEqual(
+    getNextAvailablePresetColor([]),
+    PRESET_COLORS[0],
+    'defaults to first preset color when no activities exist'
+  );
+
+  // 1st preset used -> 2nd preset
+  const oneUsed = [{ id: 'a1', color: PRESET_COLORS[0] }];
+  assertEqual(
+    getNextAvailablePresetColor(oneUsed),
+    PRESET_COLORS[1],
+    'picks second preset when first is used'
+  );
+
+  // Case-insensitive comparison
+  const upperCaseUsed = [{ id: 'a1', color: PRESET_COLORS[0].toUpperCase() }];
+  assertEqual(
+    getNextAvailablePresetColor(upperCaseUsed),
+    PRESET_COLORS[1],
+    'performs case-insensitive color comparison'
+  );
+
+  // Gaps: 1st and 3rd preset used -> picks 2nd
+  const gap = [
+    { id: 'a1', color: PRESET_COLORS[0] },
+    { id: 'a2', color: PRESET_COLORS[2] },
+  ];
+  assertEqual(
+    getNextAvailablePresetColor(gap),
+    PRESET_COLORS[1],
+    'picks first unused preset even when there are gaps'
+  );
+
+  // All presets used -> wraps around / falls back to first preset
+  const allUsed = PRESET_COLORS.map((col, idx) => ({ id: `act_${idx}`, color: col }));
+  assertEqual(
+    getNextAvailablePresetColor(allUsed),
+    PRESET_COLORS[0],
+    'falls back to first preset when all presets are taken'
+  );
 });
 
 console.log(`\n${'─'.repeat(40)}`);

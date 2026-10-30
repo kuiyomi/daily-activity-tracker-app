@@ -134,3 +134,110 @@ export function extractCompletedDates(completions = []) {
   }
   return dates;
 }
+
+export const PRESET_COLORS = [
+  '#007aff', // iOS blue
+  '#34c759', // iOS green
+  '#ff9500', // iOS orange
+  '#ff2d55', // iOS pink
+  '#af52de', // iOS purple
+  '#5856d6', // iOS indigo
+  '#ffcc00', // iOS yellow
+  '#32ade6', // iOS cyan
+];
+
+/**
+ * Returns the first preset color not currently used by any existing activity.
+ * If all preset colors are used, falls back to the first preset color.
+ *
+ * @param {Array<{ color?: string }>} existingActivities
+ * @param {string[]} [presetColors=PRESET_COLORS]
+ * @returns {string}
+ */
+export function getNextAvailablePresetColor(existingActivities = [], presetColors = PRESET_COLORS) {
+  const usedColors = new Set(
+    existingActivities
+      .filter((a) => a && typeof a.color === 'string')
+      .map((a) => a.color.trim().toLowerCase())
+  );
+
+  for (const preset of presetColors) {
+    if (!usedColors.has(preset.toLowerCase())) {
+      return preset;
+    }
+  }
+
+  return presetColors[0] || '#007aff';
+}
+
+/**
+ * Groups an array of completion records by date string (YYYY-MM-DD).
+ *
+ * @param {Array<{ date: string, activityId: string }>} completions
+ * @returns {Record<string, string[]>} map of dateStr -> array of completed activityIds
+ */
+export function groupCompletionsByDate(completions = []) {
+  if (!Array.isArray(completions)) return {};
+  const result = {};
+  for (const item of completions) {
+    if (!item || !item.date || !item.activityId) continue;
+    if (!result[item.date]) {
+      result[item.date] = [];
+    }
+    if (!result[item.date].includes(item.activityId)) {
+      result[item.date].push(item.activityId);
+    }
+  }
+  return result;
+}
+
+/**
+ * Computes dot indicators for a single day:
+ * - One dot per completed activity in that activity's color
+ * - Ordered by activity creation order (createdAt)
+ * - Maximum 4 dots; if > 4, returns 3 dots with hasOverflow = true (to show a '+')
+ *
+ * @param {string[]} completedActivityIds – activity IDs completed on that day
+ * @param {Array<{ id: string, color?: string, createdAt?: number }>} activities – all activities
+ * @param {number} [maxDots=4]
+ * @returns {{ dots: string[], hasOverflow: boolean, total: number }}
+ */
+export function getDayDotIndicators(completedActivityIds = [], activities = [], maxDots = 4) {
+  if (!completedActivityIds || completedActivityIds.length === 0) {
+    return { dots: [], hasOverflow: false, total: 0 };
+  }
+
+  const actMap = new Map();
+  for (const act of activities) {
+    if (act && act.id) {
+      actMap.set(act.id, act);
+    }
+  }
+
+  const matching = [];
+  for (const id of completedActivityIds) {
+    const act = actMap.get(id);
+    if (act) {
+      matching.push(act);
+    }
+  }
+
+  // Order strictly by activity creation order (createdAt)
+  matching.sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
+
+  const total = matching.length;
+  if (total <= maxDots) {
+    return {
+      dots: matching.map((a) => a.color || '#007aff'),
+      hasOverflow: false,
+      total,
+    };
+  }
+
+  return {
+    dots: matching.slice(0, 3).map((a) => a.color || '#007aff'),
+    hasOverflow: true,
+    total,
+  };
+}
+

@@ -65,3 +65,14 @@ index.html  manifest.webmanifest  sw.js  /src (ui, logic, storage)  /tests  /ico
 - Show clear empty states ("Nenhuma atividade ainda. Toque em + para criar.")
 - Short, friendly pt-BR labels; no technical jargon or error codes shown to the user
 - Check contrast in both light and dark mode
+
+## Release and data safety
+- Releases: edit src/version.js, then run `npm run version:sync` (it also stamps sw.js).
+- Never rename the IndexedDB database (DadsCalendarDB). Any schema change must bump
+  the DB version with an onupgradeneeded migration that preserves existing data,
+  with a test that data from the previous version survives.
+- Every file in the service worker's precache list must exist on GitHub Pages
+  (file names are case-sensitive there). When adding or renaming files, update the list.
+- New screens and interactions must follow the motion rules (subtle, transform and
+  opacity only, respecting prefers-reduced-motion).
+- After every change, state how you verified it (tests run, browser checks).

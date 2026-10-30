@@ -233,13 +233,15 @@ export async function setCompletion(dateStr, activityId, completed) {
 }
 
 /**
- * Retrieves a Set of all date strings (YYYY-MM-DD) that have at least one completion
- * within the optional [startDate, endDate] range.
- * @param {string} [startDateStr]
- * @param {string} [endDateStr]
- * @returns {Promise<Set<string>>}
+ * Retrieves all completion records within the [startDate, endDate] range using
+ * a single IndexedDB range query on the 'date' index.
+ * Returns array of completion records ({ id, date, activityId, completedAt, muscleGroupIds }).
+ *
+ * @param {string} [startDateStr] – "YYYY-MM-DD"
+ * @param {string} [endDateStr] – "YYYY-MM-DD"
+ * @returns {Promise<Array<{ id: string, date: string, activityId: string, completedAt?: number }>>}
  */
-export async function getDatesWithCompletions(startDateStr, endDateStr) {
+export async function getCompletionsForDateRange(startDateStr, endDateStr) {
   const db = await getDB();
   return new Promise((resolve, reject) => {
     const tx = db.transaction('completions', 'readonly');
@@ -254,11 +256,21 @@ export async function getDatesWithCompletions(startDateStr, endDateStr) {
     }
 
     request.onsuccess = () => {
-      const results = request.result || [];
-      const set = extractCompletedDates(results);
-      resolve(set);
+      resolve(request.result || []);
     };
 
     request.onerror = (event) => reject(event.target.error);
   });
+}
+
+/**
+ * Retrieves a Set of all date strings (YYYY-MM-DD) that have at least one completion
+ * within the optional [startDate, endDate] range.
+ * @param {string} [startDateStr]
+ * @param {string} [endDateStr]
+ * @returns {Promise<Set<string>>}
+ */
+export async function getDatesWithCompletions(startDateStr, endDateStr) {
+  const records = await getCompletionsForDateRange(startDateStr, endDateStr);
+  return extractCompletedDates(records);
 }

@@ -12,7 +12,14 @@ import {
   todayString,
   toDateString,
 } from '../logic/dateUtils.js';
-import { getDatesWithCompletions } from '../storage/storage.js';
+import {
+  groupCompletionsByDate,
+  getDayDotIndicators,
+} from '../logic/activityLogic.js';
+import {
+  getCompletionsForDateRange,
+  getActivities,
+} from '../storage/storage.js';
 import '../version.js';
 
 /**
@@ -90,18 +97,26 @@ export function mountCalendarView(root, { onDaySelect }) {
     const startDateStr = toDateString(days[0]);
     const endDateStr = toDateString(days[days.length - 1]);
 
-    let completedDates = new Set();
+    let completions = [];
+    let activities = [];
     try {
-      completedDates = await getDatesWithCompletions(startDateStr, endDateStr);
+      [completions, activities] = await Promise.all([
+        getCompletionsForDateRange(startDateStr, endDateStr),
+        getActivities(),
+      ]);
     } catch (err) {
-      console.error('Failed to fetch completions for month', err);
+      console.error('Failed to fetch completions/activities for month', err);
     }
+
+    const completionsByDate = groupCompletionsByDate(completions);
 
     days.forEach((date) => {
       const dateStr = toDateString(date);
       const isCurrentMonth = date.getMonth() === currentMonth;
       const isToday = dateStr === todayStr;
-      const hasCompletions = completedDates.has(dateStr);
+      const completedIds = completionsByDate[dateStr] || [];
+      const hasCompletions = completedIds.length > 0;
+      const { dots, hasOverflow } = getDayDotIndicators(completedIds, activities, 4);
 
       const btn = document.createElement('button');
       btn.className = [
@@ -113,11 +128,15 @@ export function mountCalendarView(root, { onDaySelect }) {
         .filter(Boolean)
         .join(' ');
 
+      const dotsHtml = dots
+        .map((color) => `<span class="cal-dot" style="background-color: ${color};"></span>`)
+        .join('');
+      const moreHtml = hasOverflow ? `<span class="cal-dots-more">+</span>` : '';
+
       btn.innerHTML = `
+        <span class="cal-day-rain" aria-hidden="true"></span>
         <span class="cal-day-num">${date.getDate()}</span>
-        <span class="cal-day-dots" aria-hidden="true">
-          ${hasCompletions ? '<span class="cal-dot"></span>' : ''}
-        </span>
+        <span class="cal-day-dots" aria-hidden="true">${dotsHtml}${moreHtml}</span>
       `;
 
       btn.setAttribute('aria-label', dateStr);

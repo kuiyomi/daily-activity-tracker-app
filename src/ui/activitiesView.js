@@ -9,22 +9,15 @@ import {
   deleteActivity,
 } from '../storage/storage.js';
 import {
+  PRESET_COLORS,
+  getNextAvailablePresetColor,
+} from '../logic/activityLogic.js';
+import {
   ACTIVITY_ICON_KEYS,
   ICONS,
   renderIconGlyph,
   normalizeIconKey,
 } from './icons.js';
-
-const PRESET_COLORS = [
-  '#007aff', // iOS blue
-  '#34c759', // iOS green
-  '#ff9500', // iOS orange
-  '#ff2d55', // iOS pink
-  '#af52de', // iOS purple
-  '#5856d6', // iOS indigo
-  '#ffcc00', // iOS yellow
-  '#32ade6', // iOS cyan
-];
 
 const CHECKMARK_SVG = `
   <svg class="color-check-svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round">
@@ -137,7 +130,7 @@ export function mountActivitiesView(root, { onBack, onFormOpen, onFormClose } = 
 
     const initialName = activityToEdit ? activityToEdit.name : '';
     let selectedIconKey = activityToEdit ? normalizeIconKey(activityToEdit.icon) : ACTIVITY_ICON_KEYS[0];
-    let selectedColor = activityToEdit ? activityToEdit.color : PRESET_COLORS[0];
+    let selectedColor = activityToEdit ? activityToEdit.color : getNextAvailablePresetColor(activities, PRESET_COLORS);
     const initialMuscle = activityToEdit ? Boolean(activityToEdit.usesMuscleGroups) : false;
 
     // Check if selectedColor is one of the presets

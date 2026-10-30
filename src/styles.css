@@ -417,11 +417,22 @@ body {
   justify-content: center;
   position: relative;
   transition: opacity 150ms ease, transform 100ms ease;
+  touch-action: manipulation;
 }
 
 .cal-day:active {
   opacity: 0.4;
   transform: scale(0.92);
+}
+
+/* Reserved space for rain glyph in top-right corner */
+.cal-day-rain {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  width: 12px;
+  height: 12px;
+  pointer-events: none;
 }
 
 .cal-day-num {
@@ -433,22 +444,38 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  height: 5px;
+  gap: 2px;
+  height: 8px;
   margin-top: 2px;
+  min-height: 6px;
 }
 
 .cal-dot {
-  width: 5px;
-  height: 5px;
+  width: 6px;
+  height: 6px;
   border-radius: 50%;
-  background-color: var(--ios-blue);
+  flex-shrink: 0;
+  display: inline-block;
+}
+
+.cal-dots-more {
+  font-size: 9px;
+  font-weight: 700;
+  line-height: 1;
+  color: var(--text-secondary);
+  margin-left: 0.5px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 6px;
 }
 
 /* Other month days */
 .cal-day--other-month {
   color: var(--text-tertiary);
 }
-.cal-day--other-month .cal-dot {
+.cal-day--other-month .cal-dot,
+.cal-day--other-month .cal-dots-more {
   opacity: 0.4;
 }
 
@@ -459,7 +486,10 @@ body {
   font-weight: 600;
 }
 .cal-day--today .cal-dot {
-  background-color: #ffffff;
+  box-shadow: 0 0 0 0.5px rgba(255, 255, 255, 0.7);
+}
+.cal-day--today .cal-dots-more {
+  color: #ffffff;
 }
 
 /* ── 8. Day Detail Screen ──────────────────────────────────── */
