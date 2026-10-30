@@ -1,6 +1,6 @@
 /**
  * calendarView.js – renders the monthly calendar grid into the DOM.
- * Depends only on dateUtils; no storage or service-worker calls.
+ * Restyled with iOS inset-grouped look, system colors, safe areas, and "Hoje" navigation.
  */
 
 import {
@@ -12,6 +12,7 @@ import {
   todayString,
   toDateString,
 } from '../logic/dateUtils.js';
+import { getDatesWithCompletions } from '../storage/storage.js';
 
 /**
  * Initialises and mounts the calendar view.
@@ -26,21 +27,43 @@ export function mountCalendarView(root, { onDaySelect }) {
 
   // ── Build the static skeleton ──────────────────────────────────────────────
   root.innerHTML = `
-    <div class="calendar">
-      <header class="cal-header">
-        <button class="nav-btn" id="btn-prev" aria-label="Mês anterior">&#8249;</button>
-        <h2 class="cal-title" id="cal-title"></h2>
-        <button class="nav-btn" id="btn-next" aria-label="Próximo mês">&#8250;</button>
+    <div class="screen-view calendar-screen">
+      <header class="ios-nav-bar ios-nav-bar--with-action">
+        <h1 class="ios-large-title">Calendário</h1>
+        <button class="ios-nav-action-btn" id="btn-today" aria-label="Voltar para o mês atual" style="display: none;">
+          Hoje
+        </button>
       </header>
 
-      <div class="cal-weekdays" role="row" aria-hidden="true"></div>
-      <div class="cal-grid" id="cal-grid" role="grid"></div>
+      <main class="screen-content">
+        <div class="inset-section">
+          <div class="inset-group calendar-card">
+            <header class="cal-nav-bar">
+              <button class="ios-icon-btn nav-btn" id="btn-prev" aria-label="Mês anterior">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                  <polyline points="15 18 9 12 15 6"></polyline>
+                </svg>
+              </button>
+              <h2 class="cal-title" id="cal-title"></h2>
+              <button class="ios-icon-btn nav-btn" id="btn-next" aria-label="Próximo mês">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                  <polyline points="9 18 15 12 9 6"></polyline>
+                </svg>
+              </button>
+            </header>
+
+            <div class="cal-weekdays" role="row" aria-hidden="true"></div>
+            <div class="cal-grid" id="cal-grid" role="grid"></div>
+          </div>
+        </div>
+      </main>
     </div>
   `;
 
   const titleEl = root.querySelector('#cal-title');
   const gridEl = root.querySelector('#cal-grid');
   const weekdaysEl = root.querySelector('.cal-weekdays');
+  const todayBtn = root.querySelector('#btn-today');
 
   // ── Weekday header (rendered once) ────────────────────────────────────────
   weekdayLabels().forEach((label) => {
@@ -51,28 +74,51 @@ export function mountCalendarView(root, { onDaySelect }) {
   });
 
   // ── Render helpers ─────────────────────────────────────────────────────────
-  function render() {
+  async function render() {
     titleEl.textContent = formatMonthHeading(currentYear, currentMonth);
     gridEl.innerHTML = '';
 
+    // Toggle "Hoje" button visibility: show when not viewing current month
+    const isCurrentMonthView = currentYear === today.getFullYear() && currentMonth === today.getMonth();
+    if (todayBtn) {
+      todayBtn.style.display = isCurrentMonthView ? 'none' : 'inline-flex';
+    }
+
     const todayStr = todayString();
     const days = buildMonthGrid(currentYear, currentMonth);
+    const startDateStr = toDateString(days[0]);
+    const endDateStr = toDateString(days[days.length - 1]);
+
+    let completedDates = new Set();
+    try {
+      completedDates = await getDatesWithCompletions(startDateStr, endDateStr);
+    } catch (err) {
+      console.error('Failed to fetch completions for month', err);
+    }
 
     days.forEach((date) => {
       const dateStr = toDateString(date);
       const isCurrentMonth = date.getMonth() === currentMonth;
       const isToday = dateStr === todayStr;
+      const hasCompletions = completedDates.has(dateStr);
 
       const btn = document.createElement('button');
       btn.className = [
         'cal-day',
         isCurrentMonth ? '' : 'cal-day--other-month',
         isToday ? 'cal-day--today' : '',
+        hasCompletions ? 'cal-day--has-completions' : '',
       ]
         .filter(Boolean)
         .join(' ');
 
-      btn.textContent = date.getDate();
+      btn.innerHTML = `
+        <span class="cal-day-num">${date.getDate()}</span>
+        <span class="cal-day-dots" aria-hidden="true">
+          ${hasCompletions ? '<span class="cal-dot"></span>' : ''}
+        </span>
+      `;
+
       btn.setAttribute('aria-label', dateStr);
       btn.setAttribute('data-date', dateStr);
       if (isToday) btn.setAttribute('aria-current', 'date');
@@ -92,6 +138,14 @@ export function mountCalendarView(root, { onDaySelect }) {
     ({ year: currentYear, month: currentMonth } = nextMonth(currentYear, currentMonth));
     render();
   });
+
+  if (todayBtn) {
+    todayBtn.addEventListener('click', () => {
+      currentYear = today.getFullYear();
+      currentMonth = today.getMonth();
+      render();
+    });
+  }
 
   // Initial paint
   render();

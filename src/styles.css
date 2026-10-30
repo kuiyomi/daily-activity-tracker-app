@@ -1,210 +1,944 @@
 /* ============================================================
-   styles.css – global design tokens + calendar + day-detail
-   Mobile-first, iPhone-safe, dark/light via CSS variables.
+   styles.css – Dad's Calendar (PWA)
+   iOS Look and Feel & Design Guidelines from AGENTS.md
    ============================================================ */
 
-/* ── Design tokens ──────────────────────────────────────────── */
+/* ── 1. Design Tokens & iOS System Colors ──────────────────── */
 :root {
-  /* Light mode */
-  --bg:            #ffffff;
-  --bg-surface:    #f2f2f7;
-  --text:          #1c1c1e;
-  --text-muted:    #8e8e93;
-  --accent:        #007aff;
-  --accent-fg:     #ffffff;
-  --today-bg:      #007aff;
-  --today-fg:      #ffffff;
-  --other-month:   #c7c7cc;
-  --nav-btn-bg:    transparent;
-  --border:        #e5e5ea;
-
-  /* Safe-area insets for iPhone notch / home bar */
-  --safe-top:    env(safe-area-inset-top, 0px);
-  --safe-bottom: env(safe-area-inset-bottom, 0px);
-  --safe-left:   env(safe-area-inset-left, 0px);
-  --safe-right:  env(safe-area-inset-right, 0px);
+  /* iOS System Colors (Light) */
+  --ios-blue:         #007aff;
+  --ios-green:        #34c759;
+  --ios-red:          #ff3b30;
+  --ios-orange:       #ff9500;
+  
+  --page-bg:          #f2f2f7;
+  --card-bg:          #ffffff;
+  --card-pressed:     #e5e5ea;
+  --separator:        rgba(60, 60, 67, 0.29);
+  
+  --text-primary:     #000000;
+  --text-secondary:   #8e8e93;
+  --text-tertiary:    #c7c7cc;
+  
+  --nav-bar-bg:       rgba(242, 242, 247, 0.92);
+  --tab-bar-bg:       rgba(255, 255, 255, 0.92);
+  
+  /* Safe-area insets for iPhone notch / dynamic island / home bar */
+  --safe-top:         env(safe-area-inset-top, 0px);
+  --safe-bottom:      env(safe-area-inset-bottom, 0px);
+  --safe-left:        env(safe-area-inset-left, 0px);
+  --safe-right:       env(safe-area-inset-right, 0px);
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --bg:           #000000;
-    --bg-surface:   #1c1c1e;
-    --text:         #f2f2f7;
-    --text-muted:   #636366;
-    --accent:       #0a84ff;
-    --accent-fg:    #ffffff;
-    --today-bg:     #0a84ff;
-    --today-fg:     #ffffff;
-    --other-month:  #48484a;
-    --border:       #38383a;
+    /* iOS System Colors (Dark) */
+    --ios-blue:         #0a84ff;
+    --ios-green:        #30d158;
+    --ios-red:          #ff453a;
+    --ios-orange:       #ff9f0a;
+    
+    --page-bg:          #000000;
+    --card-bg:          #1c1c1e;
+    --card-pressed:     #2c2c2e;
+    --separator:        rgba(84, 84, 88, 0.65);
+    
+    --text-primary:     #ffffff;
+    --text-secondary:   #8e8e93;
+    --text-tertiary:    #48484a;
+    
+    --nav-bar-bg:       rgba(0, 0, 0, 0.88);
+    --tab-bar-bg:       rgba(28, 28, 30, 0.92);
   }
 }
 
-/* ── Reset & base ───────────────────────────────────────────── */
-*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+/* ── 2. Reset, Touch & Selection Rules ─────────────────────── */
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+}
 
-html, body {
-  height: 100%;
-  background: var(--bg);
-  color: var(--text);
-  font-family: -apple-system, BlinkMacSystemFont, 'Helvetica Neue', sans-serif;
+input, textarea, [contenteditable="true"] {
+  user-select: text;
+  -webkit-user-select: text;
+  -webkit-touch-callout: default;
+}
+
+html {
+  font-family: -apple-system, "SF Pro Text", system-ui, sans-serif;
   font-size: 17px;
-  -webkit-font-smoothing: antialiased;
+  background-color: var(--page-bg);
+  color: var(--text-primary);
+  height: 100%;
+  -webkit-text-size-adjust: 100%;
 }
 
 body {
+  font: -apple-system-body;
+  font-family: -apple-system, "SF Pro Text", system-ui, sans-serif;
+  background-color: var(--page-bg);
+  color: var(--text-primary);
+  height: 100%;
+  overflow: hidden;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Motion transitions respecting prefers-reduced-motion */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* ── 3. App Shell Layout ───────────────────────────────────── */
+#app {
+  height: 100%;
+  width: 100%;
   display: flex;
   flex-direction: column;
-  padding-top: var(--safe-top);
-  padding-bottom: var(--safe-bottom);
-  padding-left: var(--safe-left);
-  padding-right: var(--safe-right);
 }
 
-#app {
+.ios-app-layout {
+  height: 100%;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.ios-view-container {
   flex: 1;
   overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  padding-left: var(--safe-left);
+  padding-right: var(--safe-right);
+  padding-bottom: 1.25rem;
 }
 
-/* ── Footer ─────────────────────────────────────────────────── */
-.app-footer {
-  text-align: center;
-  font-size: 12px;
-  color: var(--text-muted);
-  padding: 6px;
+.ios-view-container.tab-bar-hidden {
+  padding-bottom: max(var(--safe-bottom), 1.5rem);
 }
 
-/* ── Shared nav button ──────────────────────────────────────── */
-.nav-btn {
-  background: var(--nav-btn-bg);
+/* ── 4. Primary Navigation: Bottom Tab Bar ─────────────────── */
+.ios-tab-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-around;
+  background-color: var(--tab-bar-bg);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border-top: 0.5px solid var(--separator);
+  min-height: calc(49px + max(var(--safe-bottom), 0px));
+  padding-top: 6px;
+  padding-bottom: max(var(--safe-bottom), 6px);
+  padding-left: var(--safe-left);
+  padding-right: var(--safe-right);
+  flex-shrink: 0;
+  z-index: 100;
+  transition: transform 200ms ease, opacity 200ms ease;
+}
+
+.ios-tab-bar.hidden {
+  display: none !important;
+}
+
+.ios-tab-item {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  background: transparent;
   border: none;
-  color: var(--accent);
-  font-size: 32px;
-  line-height: 1;
   cursor: pointer;
+  min-height: 44px;
+  color: var(--text-secondary);
+  transition: color 150ms ease, transform 100ms ease;
+}
+
+.ios-tab-item:active {
+  opacity: 0.5;
+  transform: scale(0.96);
+}
+
+.ios-tab-item.active {
+  color: var(--ios-blue);
+}
+
+.tab-icon-wrap {
+  width: 26px;
+  height: 26px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.tab-icon-wrap svg {
+  width: 26px;
+  height: 26px;
+  fill: currentColor;
+}
+
+.ios-tab-item .tab-label {
+  font-size: 10.5px;
+  line-height: 1.1;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+}
+
+/* ── 5. Standard iOS Navigation Bars & Large Titles ────────── */
+.screen-view {
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
+}
+
+.ios-nav-bar {
+  padding-top: max(var(--safe-top), 16px);
+  padding-left: 1rem;
+  padding-right: 1rem;
+  padding-bottom: 16px; /* ~12pt space below large title */
+  display: flex;
+  align-items: flex-end;
+}
+
+.ios-nav-bar--with-action {
+  justify-content: space-between;
+  align-items: flex-end;
+}
+
+.ios-nav-bar--with-back {
+  padding-top: max(var(--safe-top), 12px);
+  padding-left: 0.75rem;
+  padding-right: 0.75rem;
+  padding-bottom: 8px;
+}
+
+.ios-large-title {
+  font-size: 2rem; /* 34px iOS standard large title */
+  font-weight: 700;
+  letter-spacing: 0.015em;
+  color: var(--text-primary);
+  line-height: 1.15;
+}
+
+.ios-nav-action-btn {
+  background: transparent;
+  border: none;
+  color: var(--ios-blue);
+  font-size: 1.05rem;
+  font-weight: 600;
+  min-height: 44px;
+  min-width: 44px;
+  padding: 0 0.5rem;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: opacity 150ms ease;
+}
+
+.ios-nav-action-btn:active {
+  opacity: 0.4;
+}
+
+.ios-back-btn {
+  background: transparent;
+  border: none;
+  color: var(--ios-blue);
+  font-size: 1rem;
+  font-weight: 400;
+  min-height: 44px;
+  padding: 0 0.25rem;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  transition: opacity 150ms ease;
+}
+
+.ios-back-btn:active {
+  opacity: 0.4;
+}
+
+.screen-content {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  padding-bottom: 1.5rem;
+}
+
+/* Standalone PWA adjustments for notch / dynamic island */
+@media (display-mode: standalone) {
+  .ios-nav-bar {
+    padding-top: max(var(--safe-top), 24px);
+  }
+  .ios-modal-header {
+    padding-top: max(var(--safe-top), 14px);
+  }
+}
+
+/* ── 6. Inset Grouped Cards (iOS Pattern) ──────────────────── */
+.inset-section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.inset-section-header {
+  padding: 0 1rem;
+  font-size: 0.82rem; /* ~13-14px */
+  font-weight: 400;
+  color: var(--text-secondary);
+  letter-spacing: -0.01em;
+  /* Sentence case preserved */
+}
+
+.inset-group {
+  background-color: var(--card-bg);
+  border-radius: 12px;
+  margin: 0 1rem;
+  overflow: hidden;
+  position: relative;
+  /* No heavy borders or shadows */
+}
+
+.inset-row {
+  display: flex;
+  align-items: center;
+  min-height: 50px;
+  padding: 0.75rem 1rem;
+  background-color: var(--card-bg);
+  position: relative;
+  transition: background-color 150ms ease;
+}
+
+.inset-row:active {
+  background-color: var(--card-pressed);
+}
+
+/* 0.5px hairline separator between rows with standard iOS left inset */
+.inset-row + .inset-row::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 3.5rem;
+  right: 0;
+  height: 0.5px;
+  background-color: var(--separator);
+}
+
+/* ── 7. Calendar View Component ────────────────────────────── */
+.calendar-card {
+  padding: 0.75rem 0.5rem 0.85rem 0.5rem;
+}
+
+.cal-nav-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.25rem 0.5rem 0.75rem 0.5rem;
+}
+
+.cal-title {
+  font-size: 1.15rem; /* ~20px */
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--text-primary);
+  text-align: center;
+  flex: 1;
+}
+
+.ios-icon-btn {
+  background: transparent;
+  border: none;
+  color: var(--ios-blue);
   min-width: 44px;
   min-height: 44px;
   display: flex;
   align-items: center;
   justify-content: center;
   border-radius: 8px;
-  padding: 0 8px;
-  -webkit-tap-highlight-color: transparent;
-}
-.nav-btn:active { background: var(--bg-surface); }
-
-/* ── Calendar ───────────────────────────────────────────────── */
-.calendar {
-  display: flex;
-  flex-direction: column;
-  padding: 12px 8px;
-  gap: 8px;
+  cursor: pointer;
+  transition: opacity 150ms ease, background-color 150ms ease;
 }
 
-.cal-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 4px 0;
+.ios-icon-btn:active {
+  opacity: 0.4;
+  background-color: var(--card-pressed);
 }
 
-.cal-title {
-  font-size: 20px;
-  font-weight: 600;
-  flex: 1;
-  text-align: center;
-}
-
-/* Weekday row */
 .cal-weekdays {
   display: grid;
   grid-template-columns: repeat(7, 1fr);
   text-align: center;
+  padding-bottom: 0.5rem;
 }
 
 .cal-weekday {
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--text-muted);
-  padding: 4px 0;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
+  font-size: 0.72rem; /* ~12px */
+  font-weight: 500;
+  color: var(--text-secondary);
+  letter-spacing: 0.02em;
 }
 
-/* Day grid */
 .cal-grid {
   display: grid;
   grid-template-columns: repeat(7, 1fr);
-  gap: 4px;
+  row-gap: 4px;
+  column-gap: 2px;
 }
 
 .cal-day {
-  background: var(--bg-surface);
+  background: transparent;
   border: none;
-  border-radius: 10px;
-  color: var(--text);
-  font-size: 17px;
+  border-radius: 50%;
+  color: var(--text-primary);
+  font-size: 1rem;
   font-weight: 400;
-  /* Enforce min tap target */
   min-height: 44px;
+  min-width: 44px;
   aspect-ratio: 1;
+  margin: 0 auto;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  transition: opacity 150ms ease, transform 100ms ease;
+}
+
+.cal-day:active {
+  opacity: 0.4;
+  transform: scale(0.92);
+}
+
+.cal-day-num {
+  line-height: 1;
+  font-size: 1rem;
+}
+
+.cal-day-dots {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 5px;
+  margin-top: 2px;
+}
+
+.cal-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background-color: var(--ios-blue);
+}
+
+/* Other month days */
+.cal-day--other-month {
+  color: var(--text-tertiary);
+}
+.cal-day--other-month .cal-dot {
+  opacity: 0.4;
+}
+
+/* Today cell with iOS blue circle */
+.cal-day--today {
+  background-color: var(--ios-blue);
+  color: #ffffff;
+  font-weight: 600;
+}
+.cal-day--today .cal-dot {
+  background-color: #ffffff;
+}
+
+/* ── 8. Day Detail Screen ──────────────────────────────────── */
+.day-heading-container {
+  padding: 8px 1rem 16px 1rem; /* generous spacing around day title */
+}
+
+.day-large-title {
+  font-size: 1.55rem; /* ~26px */
+  font-weight: 700;
+  line-height: 1.2;
+  color: var(--text-primary);
+}
+
+.activity-check-row {
+  cursor: pointer;
+  gap: 0.85rem;
+}
+
+.activity-checkbox-circle {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 1.5px solid var(--text-tertiary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  background-color: transparent;
+  transition: background-color 150ms ease, border-color 150ms ease;
+}
+
+.activity-checkbox-circle .check-icon {
+  opacity: 0;
+  stroke: #ffffff;
+  transition: opacity 150ms ease;
+}
+
+.activity-check-row--done .activity-checkbox-circle {
+  background-color: var(--ios-blue);
+  border-color: var(--ios-blue);
+}
+
+.activity-check-row--done .activity-checkbox-circle .check-icon {
+  opacity: 1;
+}
+
+/* ── Activity Icon Badge (iOS Settings Style) ──────────────── */
+.activity-icon-badge {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px; /* rounded square */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #ffffff; /* white glyph */
+  flex-shrink: 0;
+  overflow: hidden;
+}
+
+.activity-icon-badge svg {
+  width: 20px;
+  height: 20px;
+  fill: #ffffff;
+}
+
+.activity-icon-badge .activity-emoji-fallback {
+  font-size: 1.15rem;
+  line-height: 1;
+}
+
+.activity-row-label {
+  flex: 1;
+  display: flex;
+  align-items: center;
+}
+
+.activity-name-text {
+  font-size: 1rem;
+  font-weight: 400;
+  color: var(--text-primary);
+}
+
+.activity-check-row--done .activity-name-text {
+  color: var(--text-secondary);
+}
+
+.day-footer-action {
+  text-align: center;
+  padding: 0.5rem 1rem;
+}
+
+.ios-link-btn {
+  background: transparent;
+  border: none;
+  color: var(--ios-blue);
+  font-size: 1rem;
+  font-weight: 400;
+  min-height: 44px;
+  padding: 0 1rem;
+  cursor: pointer;
+  transition: opacity 150ms ease;
+}
+
+.ios-link-btn:active {
+  opacity: 0.4;
+}
+
+/* ── 9. Activities Screen & Form ───────────────────────────── */
+.activity-item-card {
+  cursor: pointer;
+  gap: 0.85rem;
+}
+
+.activity-card-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.activity-card-name {
+  font-size: 1rem;
+  font-weight: 400;
+  color: var(--text-primary);
+}
+
+.activity-badge {
+  font-size: 0.75rem; /* ~13px */
+  color: var(--text-secondary);
+}
+
+.ios-chevron {
+  color: var(--text-tertiary);
+  flex-shrink: 0;
+}
+
+.empty-state-row {
+  justify-content: center;
+  text-align: center;
+  padding: 1.5rem 1rem;
+}
+
+.empty-state-text {
+  font-size: 0.95rem;
+  color: var(--text-secondary);
+  line-height: 1.4;
+}
+
+/* Modal Form Styles */
+.ios-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: max(var(--safe-top), 10px) 1rem 12px 1rem;
+  border-bottom: 0.5px solid var(--separator);
+  background-color: var(--tab-bar-bg);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+}
+
+.ios-modal-title {
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  text-align: center;
+}
+
+.ios-modal-btn {
+  background: transparent;
+  border: none;
+  color: var(--ios-blue);
+  font-size: 1rem;
+  font-weight: 400;
+  min-height: 44px;
+  cursor: pointer;
+  padding: 0 0.5rem;
+  transition: opacity 150ms ease;
+}
+
+.ios-modal-btn:active {
+  opacity: 0.4;
+}
+
+.ios-modal-btn--bold {
+  font-weight: 600;
+}
+
+.ios-form {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  padding-top: 0.75rem;
+}
+
+/* Form Preview Card */
+.form-preview-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 12px 16px;
+}
+
+.form-preview-badge {
+  width: 44px;
+  height: 44px;
+  border-radius: 10px;
+}
+
+.form-preview-badge svg {
+  width: 26px;
+  height: 26px;
+}
+
+.form-preview-badge .activity-emoji-fallback {
+  font-size: 1.5rem;
+}
+
+.form-preview-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.form-preview-name {
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.form-preview-sub {
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+}
+
+.input-row {
+  padding: 0 1rem;
+}
+
+.ios-input {
+  width: 100%;
+  height: 48px;
+  background: transparent;
+  border: none;
+  font-size: 1rem; /* 17px - strictly >= 16px to prevent iOS auto-zoom */
+  color: var(--text-primary);
+  outline: none;
+  font-family: inherit;
+}
+
+.ios-input::placeholder {
+  color: var(--text-tertiary);
+}
+
+.picker-row {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.75rem;
+}
+
+/* Icon Picker Grid (Phosphor Icons) */
+.icon-picker-grid {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 8px;
+  width: 100%;
+}
+
+.icon-choice-btn {
+  aspect-ratio: 1;
+  height: 44px;
+  border-radius: 10px;
+  border: 1.5px solid transparent;
+  background-color: var(--card-pressed);
+  color: var(--text-primary);
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  -webkit-tap-highlight-color: transparent;
-  transition: background 0.15s;
+  transition: transform 100ms ease, border-color 150ms ease, background-color 150ms ease;
 }
 
-.cal-day:active {
-  background: var(--border);
+.icon-choice-btn:active {
+  transform: scale(0.92);
 }
 
-/* Days that belong to the previous / next month */
-.cal-day--other-month {
-  color: var(--other-month);
-  background: transparent;
+.icon-choice-btn svg {
+  width: 22px;
+  height: 22px;
+  fill: currentColor;
 }
 
-/* Today */
-.cal-day--today {
-  background: var(--today-bg);
-  color: var(--today-fg);
-  font-weight: 700;
+.icon-choice-btn.selected {
+  border-color: var(--ios-blue);
+  background-color: var(--card-bg);
+  box-shadow: 0 0 0 1.5px var(--ios-blue);
+  color: var(--ios-blue);
 }
 
-.cal-day--today:active {
-  background: var(--accent);
-  filter: brightness(0.88);
-}
-
-/* ── Day detail ─────────────────────────────────────────────── */
-.day-detail {
+/* Color Picker & Selected State */
+.color-picker-grid {
   display: flex;
-  flex-direction: column;
-  padding: 12px 16px;
-  gap: 16px;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
 }
 
-.day-header {
+.color-choice-btn {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: none;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  transition: transform 100ms ease, box-shadow 150ms ease;
+  flex-shrink: 0;
+}
+
+.color-choice-btn:active {
+  transform: scale(0.9);
+}
+
+/* Clear selected ring state */
+.color-choice-btn.selected {
+  box-shadow: 0 0 0 2px var(--card-bg), 0 0 0 4.5px var(--text-primary);
+}
+
+.color-check-svg {
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.45));
+}
+
+/* Custom color option matching the preset buttons */
+.color-choice-custom {
+  background: conic-gradient(from 180deg at 50% 50%, #ff3b30, #ff9500, #ffcc00, #34c759, #007aff, #af52de, #ff3b30);
+  border: 2px solid var(--card-bg);
+  overflow: hidden;
+}
+
+.color-choice-custom:not(.selected) .custom-color-content {
+  background-color: var(--card-bg);
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
   display: flex;
   align-items: center;
-  gap: 8px;
+  justify-content: center;
+  color: var(--text-primary);
 }
 
-.day-title {
-  font-size: 18px;
+.color-choice-custom .color-palette-svg {
+  width: 14px;
+  height: 14px;
+}
+
+.ios-color-native-hidden {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  cursor: pointer;
+}
+
+/* iOS Switch Style */
+.toggle-row {
+  justify-content: space-between;
+  cursor: pointer;
+}
+
+.toggle-label {
+  font-size: 1rem;
+  color: var(--text-primary);
+}
+
+.ios-switch {
+  width: 51px;
+  height: 31px;
+  appearance: none;
+  -webkit-appearance: none;
+  background-color: var(--text-tertiary);
+  border-radius: 31px;
+  position: relative;
+  outline: none;
+  cursor: pointer;
+  transition: background-color 200ms ease;
+  flex-shrink: 0;
+}
+
+.ios-switch::after {
+  content: "";
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 27px;
+  height: 27px;
+  background-color: #ffffff;
+  border-radius: 50%;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+  transition: transform 200ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.ios-switch:checked {
+  background-color: var(--ios-green);
+}
+
+.ios-switch:checked::after {
+  transform: translateX(20px);
+}
+
+/* Delete Row */
+.delete-row {
+  justify-content: center;
+  color: var(--ios-red);
+  font-size: 1rem;
+  font-weight: 500;
+  border: none;
+  width: 100%;
+  cursor: pointer;
+}
+
+.form-error {
+  margin: 0 1rem;
+  color: var(--ios-red);
+  font-size: 0.85rem;
+  padding: 0.5rem 0.75rem;
+  background-color: rgba(255, 59, 48, 0.12);
+  border-radius: 8px;
+}
+
+/* ── 10. Summary Screen & App Version Footer ───────────────── */
+.summary-placeholder-row {
+  gap: 1rem;
+  padding: 1rem;
+}
+
+.summary-badge {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+}
+
+.summary-badge svg {
+  width: 24px;
+  height: 24px;
+}
+
+.summary-placeholder-text {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.summary-placeholder-title {
+  font-size: 1rem;
   font-weight: 600;
-  flex: 1;
+  color: var(--text-primary);
 }
 
-.day-content {
-  padding: 16px 0;
+.summary-placeholder-desc {
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+  line-height: 1.4;
 }
 
-.day-placeholder {
-  color: var(--text-muted);
-  font-size: 15px;
+.app-version-footer {
   text-align: center;
-  padding: 32px 0;
+  color: var(--text-secondary);
+  font-size: 0.8rem;
+  padding: 1.5rem 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.version-code {
+  color: var(--text-tertiary);
+  font-size: 0.75rem;
 }
