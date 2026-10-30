@@ -3,9 +3,28 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Meu calendário</title>
+
+  <!-- PWA Web App Manifest -->
+  <link rel="manifest" href="./manifest.webmanifest" />
+
+  <!-- iOS PWA meta tags & icons -->
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-title" content="Meu calendário" />
+  <!--
+    apple-mobile-web-app-status-bar-style: "default"
+    In iOS 15+, "default" cooperates with the theme-color meta tags below to render dark text
+    in light mode and light text in dark mode. "black-translucent" forces white text on all
+    modes, making the status bar illegible against light backgrounds.
+  -->
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+  <link rel="apple-touch-icon" sizes="180x180" href="./icons/icon-180.png" />
+
+  <!-- Theme color for light and dark mode -->
   <meta name="theme-color" content="#F2F2F7" media="(prefers-color-scheme: light)" />
   <meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)" />
-  <title>Calendário do Pai</title>
+
   <link rel="stylesheet" href="./src/styles.css" />
 </head>
 <body>

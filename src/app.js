@@ -1,6 +1,7 @@
 /**
  * app.js – application entry point with iOS bottom tab bar navigation.
  * Uses Phosphor Icons for tab bar (outline when inactive, fill when active).
+ * Registers service worker for offline use.
  */
 
 import { mountCalendarView } from './ui/calendarView.js';
@@ -128,3 +129,14 @@ tabButtons.forEach((btn) => {
 
 // Boot app on Calendar tab
 showCalendar();
+
+// ── Register Service Worker for Offline Use (PWA) ────────────────────────────
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', async () => {
+    try {
+      await navigator.serviceWorker.register('./sw.js', { scope: './' });
+    } catch (err) {
+      console.warn('Falha ao registrar o service worker:', err);
+    }
+  });
+}
