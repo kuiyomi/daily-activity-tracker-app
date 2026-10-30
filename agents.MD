@@ -76,8 +76,18 @@ index.html  manifest.webmanifest  sw.js  /src (ui, logic, storage)  /tests  /ico
 - New screens and interactions must follow the motion rules (subtle, transform and
   opacity only, respecting prefers-reduced-motion).
 - After every change, state how you verified it (tests run, browser checks).
-- Every feature or fix meant for deployment ends with a version bump
-  (patch for fixes, minor for features) via the documented release process.
-  Without a bump, the installed app won't update.
-- When changing UI, verify the rendered result in a headless browser with seeded
-  data, not only with unit tests.
+
+  ## Verification and releases
+- Unit tests are not enough for UI work. Every UI change must also be verified in a
+  headless browser with seeded IndexedDB data, asserting what is actually rendered.
+  Report exactly what was checked and show the output.
+- Render a screen successfully before hiding other UI (like the tab bar). If a screen
+  fails to render, restore the previous state, log with console.error and show a
+  friendly pt-BR message, never a blank screen.
+- Every change meant for deployment ends with a version bump (patch for fixes, minor
+  for features) via src/version.js and `npm run version:sync`. Without a bump the
+  installed app won't update.
+- Never rename the IndexedDB database. Schema changes need a version bump with an
+  onupgradeneeded migration that preserves data, plus a test that old data survives.
+- Every file in the service worker precache list must exist on GitHub Pages
+  (file names are case-sensitive there).
