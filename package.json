@@ -1,11 +1,11 @@
 {
   "name": "agenda",
-  "version": "0.6.0",
+  "version": "0.6.1",
   "description": "Agenda pessoal PWA para iPhone",
   "type": "module",
   "scripts": {
     "test": "node tests/dateUtils.test.js && node tests/activityLogic.test.js && node tests/theme.test.js && node tests/migration.test.js",
-    "test:browser": "node tests/activitiesBrowser.test.js && node tests/settingsBrowser.test.js && node tests/featuresBrowser.test.js && node tests/calendarBrowser.test.js && node tests/transitionsBrowser.test.js",
+    "test:browser": "node tests/activitiesBrowser.test.js && node tests/settingsBrowser.test.js && node tests/featuresBrowser.test.js && node tests/calendarBrowser.test.js && node tests/transitionsBrowser.test.js && node tests/calendarLayoutBrowser.test.js",
     "version:sync": "node scripts/sync-version.js"
   },
   "engines": {

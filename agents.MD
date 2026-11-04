@@ -65,6 +65,8 @@ index.html  manifest.webmanifest  sw.js  /src (ui, logic, storage)  /tests  /ico
 - Show clear empty states ("Nenhuma atividade ainda. Toque em + para criar.")
 - Short, friendly pt-BR labels; no technical jargon or error codes shown to the user
 - Check contrast in both light and dark mode
+- Pushed screens (back chevron) slide from the right, keep the tab bar, no
+  rounded top. Sheets (Cancelar/Salvar) slide up and hide the tab bar. Never mix them.
 
 ## Release and data safety
 - Releases: edit src/version.js, then run `npm run version:sync` (it also stamps sw.js).

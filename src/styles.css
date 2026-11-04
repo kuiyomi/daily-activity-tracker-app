@@ -491,7 +491,13 @@ body {
 
 /* ── 7. Calendar View Component ────────────────────────────── */
 .calendar-card {
-  padding: 0.75rem 0.5rem 0.85rem 0.5rem;
+  padding: 0.75rem 0.5rem 0.25rem 0.5rem;
+}
+
+/* Keep the calendar header's action slot reserved without allowing a hidden action to receive taps. */
+.ios-nav-action-btn.is-visually-hidden {
+  visibility: hidden;
+  pointer-events: none;
 }
 
 .cal-nav-bar {
@@ -692,6 +698,7 @@ body {
 }
 .cal-day--today .cal-day-rain {
   color: var(--ios-cyan);
+  right: -4px;
 }
 
 /* ── 8. Day Detail Screen ──────────────────────────────────── */

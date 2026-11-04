@@ -41,7 +41,7 @@ export function mountCalendarView(root, { onDaySelect }) {
     <div class="screen-view calendar-screen">
       <header class="ios-nav-bar ios-nav-bar--with-action">
         <h1 class="ios-large-title">${'Calendário'}</h1>
-        <button class="ios-nav-action-btn" id="btn-today" aria-label="Voltar para o mês atual" style="display: none;">
+        <button class="ios-nav-action-btn is-visually-hidden" id="btn-today" aria-label="Voltar para o mês atual" aria-hidden="true" tabindex="-1">
           Hoje
         </button>
       </header>
@@ -99,7 +99,9 @@ export function mountCalendarView(root, { onDaySelect }) {
     // Toggle "Hoje" button visibility: show when not viewing current month
     const isCurrentMonthView = currentYear === today.getFullYear() && currentMonth === today.getMonth();
     if (todayBtn) {
-      todayBtn.style.display = isCurrentMonthView ? 'none' : 'inline-flex';
+      todayBtn.classList.toggle('is-visually-hidden', isCurrentMonthView);
+      todayBtn.setAttribute('aria-hidden', String(isCurrentMonthView));
+      todayBtn.tabIndex = isCurrentMonthView ? -1 : 0;
     }
 
     const todayStr = todayString();
