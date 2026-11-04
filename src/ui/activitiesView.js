@@ -41,8 +41,33 @@ export function mountActivitiesView(root, { onBack, onFormOpen, onFormClose } = 
   let isEditing = false;
   let currentActivity = null;
   let currentActivities = [];
+  let formClosing = false;
 
-  async function renderList() {
+  async function renderList({ closeSheet = false } = {}) {
+    const sheet = root.querySelector('.activity-form-screen');
+    if (closeSheet && sheet) {
+      if (formClosing) return;
+      formClosing = true;
+      sheet.classList.remove('is-sheet-open');
+      sheet.classList.add('is-sheet-closing');
+      // The timeout makes the final state reliable when transitionend is missed.
+      await new Promise((resolve) => {
+        let finished = false;
+        const finish = () => {
+          if (finished) return;
+          finished = true;
+          sheet.removeEventListener('transitionend', onEnd);
+          clearTimeout(timer);
+          resolve();
+        };
+        const onEnd = (event) => {
+          if (event.target === sheet && event.propertyName === 'transform') finish();
+        };
+        const timer = setTimeout(finish, 290);
+        sheet.addEventListener('transitionend', onEnd);
+      });
+      formClosing = false;
+    }
     isEditing = false;
     currentActivity = null;
 
@@ -360,7 +385,7 @@ export function mountActivitiesView(root, { onBack, onFormOpen, onFormClose } = 
     });
 
     // Cancel handler
-    root.querySelector('#btn-cancel-form').addEventListener('click', () => renderList());
+    root.querySelector('#btn-cancel-form').addEventListener('click', () => renderList({ closeSheet: true }));
 
     // Submit handler
     const submitForm = async () => {
@@ -380,7 +405,7 @@ export function mountActivitiesView(root, { onBack, onFormOpen, onFormClose } = 
 
       try {
         await saveActivity(payload);
-        renderList();
+        renderList({ closeSheet: true });
       } catch (err) {
         errorEl.textContent = err.message || 'Erro ao salvar atividade';
         errorEl.style.display = 'block';
@@ -402,7 +427,7 @@ export function mountActivitiesView(root, { onBack, onFormOpen, onFormClose } = 
         if (confirmed) {
           try {
             await deleteActivity(currentActivity.id);
-            renderList();
+            renderList({ closeSheet: true });
           } catch (err) {
             errorEl.textContent = 'Erro ao excluir atividade: ' + err.message;
             errorEl.style.display = 'block';
@@ -412,6 +437,7 @@ export function mountActivitiesView(root, { onBack, onFormOpen, onFormClose } = 
     }
 
     // Hide tab bar only after the form has rendered successfully
+    requestAnimationFrame(() => root.querySelector('.activity-form-screen')?.classList.add('is-sheet-open'));
     if (onFormOpen) onFormOpen();
   } catch (err) {
     console.error('Falha ao abrir formulário de atividade:', err);

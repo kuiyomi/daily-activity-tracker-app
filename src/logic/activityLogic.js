@@ -192,6 +192,23 @@ export function groupCompletionsByDate(completions = []) {
 }
 
 /**
+ * Collects YYYY-MM-DD strings whose day entry has rained === true.
+ *
+ * @param {Array<{ date?: string, rained?: boolean }>} dayEntries
+ * @returns {Set<string>}
+ */
+export function rainedDateSet(dayEntries = []) {
+  const dates = new Set();
+  if (!Array.isArray(dayEntries)) return dates;
+  for (const entry of dayEntries) {
+    if (entry && entry.rained && typeof entry.date === 'string') {
+      dates.add(entry.date);
+    }
+  }
+  return dates;
+}
+
+/**
  * Computes dot indicators for a single day:
  * - One dot per completed activity in that activity's color
  * - Ordered by activity creation order (createdAt)

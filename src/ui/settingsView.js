@@ -147,7 +147,29 @@ export async function mountSettingsView(root) {
   gotoMgBtn?.addEventListener('click', async () => {
     try {
       await mountMuscleGroupsView(root, {
-        onBack: () => mountSettingsView(root),
+        onBack: async () => {
+          const sheet = root.querySelector('.muscle-groups-screen');
+          if (sheet) {
+            sheet.classList.remove('is-sheet-open');
+            sheet.classList.add('is-sheet-closing');
+            await new Promise((resolve) => {
+              let finished = false;
+              const finish = () => {
+                if (finished) return;
+                finished = true;
+                sheet.removeEventListener('transitionend', onEnd);
+                clearTimeout(timer);
+                resolve();
+              };
+              const onEnd = (event) => {
+                if (event.target === sheet && event.propertyName === 'transform') finish();
+              };
+              const timer = setTimeout(finish, 290);
+              sheet.addEventListener('transitionend', onEnd);
+            });
+          }
+          mountSettingsView(root);
+        },
       });
     } catch (err) {
       console.error('Falha ao abrir grupos musculares:', err);

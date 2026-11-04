@@ -12,6 +12,7 @@ html[data-theme="light"] {
   --ios-green:        #34c759;
   --ios-red:          #ff3b30;
   --ios-orange:       #ff9500;
+  --ios-cyan:         #32ade6;
   
   --page-bg:          #f2f2f7;
   --card-bg:          #ffffff;
@@ -43,6 +44,7 @@ html[data-theme="light"] {
     --ios-green:        #30d158;
     --ios-red:          #ff453a;
     --ios-orange:       #ff9f0a;
+    --ios-cyan:         #64d2ff;
     
     --page-bg:          #000000;
     --card-bg:          #1c1c1e;
@@ -68,6 +70,7 @@ html[data-theme="dark"] {
   --ios-green:        #30d158;
   --ios-red:          #ff453a;
   --ios-orange:       #ff9f0a;
+  --ios-cyan:         #64d2ff;
   
   --page-bg:          #000000;
   --card-bg:          #1c1c1e;
@@ -155,7 +158,46 @@ body {
   padding-left: var(--safe-left);
   padding-right: var(--safe-right);
   padding-bottom: 1.25rem;
+  position: relative;
 }
+
+/* Navigation layers keep the previous screen present until its transition ends. */
+.view-layer {
+  min-height: 100%;
+  width: 100%;
+  background: var(--page-bg);
+}
+
+.view-layer--outgoing,
+.view-layer--incoming {
+  position: absolute;
+  inset: 0;
+  min-height: 100%;
+}
+
+.view-layer--incoming { z-index: 2; }
+.view-layer--outgoing { z-index: 1; }
+.view-layer--fade-in { opacity: 0; transform: translateX(0); }
+.view-layer--fade-out { opacity: 1; transform: translateX(0); }
+.view-layer--day-forward-in { opacity: 1; transform: translateX(100%); }
+.view-layer--day-forward-out { opacity: 1; transform: translateX(0); }
+.view-layer--day-back-in { opacity: 1; transform: translateX(-8%); }
+.view-layer--day-back-out { opacity: 1; transform: translateX(0); }
+.view-layer--fade-in.is-animating { opacity: 1; }
+.view-layer--fade-out.is-animating { opacity: 0; }
+.view-layer--day-forward-in.is-animating { transform: translateX(0); }
+.view-layer--day-forward-out.is-animating { opacity: .96; transform: translateX(-8%); }
+.view-layer--day-back-in.is-animating { transform: translateX(0); }
+.view-layer--day-back-out.is-animating { opacity: .96; transform: translateX(100%); }
+.view-layer.is-animating {
+  transition: transform 350ms cubic-bezier(0.32, 0.72, 0, 1), opacity 350ms cubic-bezier(0.32, 0.72, 0, 1);
+}
+.view-layer--fade-in.is-animating,
+.view-layer--fade-out.is-animating {
+  transition-duration: 150ms;
+}
+
+.view-error { padding: 2rem 1rem; color: var(--text-secondary); }
 
 .ios-view-container.tab-bar-hidden {
   padding-bottom: max(var(--safe-bottom), 1.5rem);
@@ -503,27 +545,60 @@ body {
 
 .cal-grid {
   display: grid;
-  grid-template-columns: repeat(7, 1fr);
-  row-gap: 4px;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  row-gap: 2px;
   column-gap: 2px;
+  /* ~60px rows; 52px floor for 6-week months on small screens; 68px cap on tall screens.
+     Rows do not grow to fill leftover viewport — space below is left for a future card. */
+  grid-auto-rows: clamp(52px, 7.2vh, 68px);
+}
+
+.cal-grid-stage {
+  position: relative;
+  overflow: hidden;
+  touch-action: pan-y;
+}
+
+.cal-grid-stage > .cal-grid--leaving {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+}
+
+.cal-grid--month-enter-next { transform: translateX(100%); opacity: 0; }
+.cal-grid--month-enter-prev { transform: translateX(-100%); opacity: 0; }
+.cal-grid--month-leave-next { transform: translateX(0); opacity: 1; }
+.cal-grid--month-leave-prev { transform: translateX(0); opacity: 1; }
+.cal-grid--month-enter-next.is-animating,
+.cal-grid--month-enter-prev.is-animating { transform: translateX(0); opacity: 1; }
+.cal-grid--month-leave-next.is-animating { transform: translateX(-100%); opacity: 0; }
+.cal-grid--month-leave-prev.is-animating { transform: translateX(100%); opacity: 0; }
+.cal-grid.is-animating {
+  transition: transform 250ms cubic-bezier(0.32, 0.72, 0, 1), opacity 250ms cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+.cal-grid.cal-grid--six-weeks {
+  grid-auto-rows: clamp(52px, 7.2vh, 60px);
 }
 
 .cal-day {
   background: transparent;
   border: none;
-  border-radius: 50%;
+  border-radius: 8px;
   color: var(--text-primary);
   font-size: 1rem;
   font-weight: 400;
   min-height: 44px;
   min-width: 44px;
-  aspect-ratio: 1;
-  margin: 0 auto;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 4px 1px 3px;
   cursor: pointer;
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
+  justify-content: flex-start;
   position: relative;
   transition: opacity 150ms ease, transform 100ms ease;
   touch-action: manipulation;
@@ -531,22 +606,40 @@ body {
 
 .cal-day:active {
   opacity: 0.4;
-  transform: scale(0.92);
+  transform: scale(0.96);
 }
 
 /* Reserved space for rain glyph in top-right corner */
 .cal-day-rain {
   position: absolute;
-  top: 2px;
+  top: 3px;
   right: 2px;
-  width: 12px;
-  height: 12px;
+  width: 14px;
+  height: 14px;
+  color: var(--ios-cyan);
   pointer-events: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.cal-day-rain svg {
+  width: 14px;
+  height: 14px;
+  display: block;
+  fill: currentColor;
 }
 
 .cal-day-num {
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
   line-height: 1;
   font-size: 1rem;
+  flex-shrink: 0;
 }
 
 .cal-day-dots {
@@ -588,17 +681,17 @@ body {
   opacity: 0.4;
 }
 
-/* Today cell with iOS blue circle */
+/* Today: blue circle around the day number only (not the whole cell) */
 .cal-day--today {
-  background-color: var(--ios-blue);
-  color: #ffffff;
+  background-color: transparent;
   font-weight: 600;
 }
-.cal-day--today .cal-dot {
-  box-shadow: 0 0 0 0.5px rgba(255, 255, 255, 0.7);
-}
-.cal-day--today .cal-dots-more {
+.cal-day--today .cal-day-num {
+  background-color: var(--ios-blue);
   color: #ffffff;
+}
+.cal-day--today .cal-day-rain {
+  color: var(--ios-cyan);
 }
 
 /* ── 8. Day Detail Screen ──────────────────────────────────── */
@@ -1003,6 +1096,28 @@ body {
   padding-top: 0.75rem;
 }
 
+/* Forms and muscle-group management present as iOS-style bottom sheets. */
+.activity-form-screen,
+.muscle-groups-screen {
+  position: fixed;
+  z-index: 200;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  max-height: min(92dvh, 760px);
+  overflow-y: auto;
+  border-radius: 14px 14px 0 0;
+  background: var(--page-bg);
+  box-shadow: 0 -8px 24px rgba(0, 0, 0, .18);
+  transform: translateY(100%);
+  opacity: 0;
+  transition: transform 250ms cubic-bezier(0.32, 0.72, 0, 1), opacity 250ms cubic-bezier(0.32, 0.72, 0, 1);
+}
+.activity-form-screen.is-sheet-open,
+.muscle-groups-screen.is-sheet-open { transform: translateY(0); opacity: 1; }
+.activity-form-screen.is-sheet-closing,
+.muscle-groups-screen.is-sheet-closing { transform: translateY(100%); opacity: 0; }
+
 /* Form Preview Card */
 .form-preview-row {
   display: flex;
@@ -1221,12 +1336,18 @@ body {
   transform: translateX(20px);
 }
 
-/* iOS Switch Style – variant B: <div class="ios-switch"><input type="checkbox" hidden/><span class="ios-switch-slider"></span></div> */
+/* iOS Switch Style – variant B (legacy wrapper). The Choveu row uses variant A.
+   Hide leftover ::after from variant A so a second unchecked thumb never shows. */
 div.ios-switch {
   appearance: unset;
   -webkit-appearance: unset;
   display: inline-block;
   cursor: pointer;
+}
+
+div.ios-switch::after {
+  content: none;
+  display: none;
 }
 
 div.ios-switch input[type="checkbox"] {
@@ -1235,6 +1356,8 @@ div.ios-switch input[type="checkbox"] {
   width: 0;
   height: 0;
   pointer-events: none;
+  appearance: none;
+  -webkit-appearance: none;
 }
 
 .ios-switch-slider {

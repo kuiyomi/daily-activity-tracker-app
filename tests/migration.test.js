@@ -17,6 +17,7 @@ import {
   getCompletionsForDate,
   getMuscleGroups,
   getDayEntry,
+  getDayEntriesForDateRange,
   setDayRained,
   setDayNotes,
   DEFAULT_MUSCLE_GROUPS,
@@ -135,6 +136,16 @@ async function run() {
   const entryAfter = await getDayEntry('2026-10-15');
   assertEqual(entryAfter.rained, true, 'setDayRained persisted');
   assertEqual(entryAfter.notes, 'Dia chuvoso e treino bom', 'setDayNotes persisted');
+
+  await setDayRained('2026-10-01', true);
+  await setDayRained('2026-11-01', true);
+  const octoberEntries = await getDayEntriesForDateRange('2026-10-01', '2026-10-31');
+  const octoberRainy = octoberEntries.filter((e) => e.rained).map((e) => e.date).sort();
+  assertEqual(
+    octoberRainy.join(','),
+    '2026-10-01,2026-10-15',
+    'getDayEntriesForDateRange returns a single bounded month of rainy days'
+  );
 
   await closeDB();
 

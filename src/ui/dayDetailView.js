@@ -70,10 +70,13 @@ export async function mountDayDetailView(root, dateStr, { onBack, onManageActivi
                 </div>
                 <span class="toggle-label-title">Choveu</span>
               </div>
-              <div class="ios-switch">
-                <input type="checkbox" id="day-rained-switch" />
-                <span class="ios-switch-slider"></span>
-              </div>
+              <input
+                type="checkbox"
+                id="day-rained-switch"
+                class="ios-switch"
+                role="switch"
+                aria-label="Choveu"
+              />
             </label>
 
             <!-- Anotações row -->

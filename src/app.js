@@ -92,6 +92,64 @@ const tabButtons = root.querySelectorAll('.ios-tab-item');
 const tabBar = root.querySelector('.ios-tab-bar');
 
 let currentTab = 'calendario';
+let navigationId = 0;
+
+function waitForMotion(element, property, fallbackMs) {
+  return new Promise((resolve) => {
+    let done = false;
+    const finish = () => {
+      if (done) return;
+      done = true;
+      element.removeEventListener('transitionend', onEnd);
+      clearTimeout(timeout);
+      resolve();
+    };
+    const onEnd = (event) => {
+      if (event.target === element && event.propertyName === property) finish();
+    };
+    const timeout = setTimeout(finish, fallbackMs);
+    element.addEventListener('transitionend', onEnd);
+  });
+}
+
+async function changeView(mount, motion = 'fade') {
+  const id = ++navigationId;
+  const outgoing = viewContainer.querySelector('.view-layer--current');
+  const incoming = document.createElement('div');
+  incoming.className = 'view-layer view-layer--current view-layer--incoming';
+  viewContainer.appendChild(incoming);
+
+  try {
+    await mount(incoming);
+    if (id !== navigationId) {
+      incoming.remove();
+      return;
+    }
+    if (!incoming.querySelector('.screen-view')) throw new Error('Tela não foi renderizada');
+  } catch (error) {
+    incoming.remove();
+    console.error('Falha ao renderizar tela:', error);
+    if (!outgoing) viewContainer.innerHTML = '<p class="view-error">Não foi possível abrir esta tela. Tente novamente.</p>';
+    return;
+  }
+
+  if (!outgoing) {
+    incoming.classList.remove('view-layer--incoming');
+    return;
+  }
+
+  outgoing.classList.remove('view-layer--current');
+  outgoing.classList.add('view-layer--outgoing', `view-layer--${motion}-out`);
+  incoming.classList.add(`view-layer--${motion}-in`);
+  // Force the initial transform to paint before moving both layers.
+  void incoming.offsetWidth;
+  outgoing.classList.add('is-animating');
+  incoming.classList.add('is-animating');
+  await Promise.all([waitForMotion(incoming, 'transform', motion === 'fade' ? 230 : 430), waitForMotion(outgoing, 'transform', motion === 'fade' ? 230 : 430)]);
+  if (id !== navigationId) return;
+  outgoing.remove();
+  incoming.className = 'view-layer view-layer--current';
+}
 
 function setTabBarVisible(visible) {
   if (tabBar) {
@@ -116,21 +174,21 @@ function setActiveTab(tabName) {
   });
 }
 
-function showCalendar() {
+function showCalendar(motion = 'fade') {
   setTabBarVisible(true);
   setActiveTab('calendario');
-  mountCalendarView(viewContainer, {
+  return changeView((layer) => mountCalendarView(layer, {
     onDaySelect: (dateStr) => showDayDetail(dateStr),
-  });
+  }), motion);
 }
 
 function showDayDetail(dateStr) {
   // Day detail keeps the tab bar visible
   setTabBarVisible(true);
-  mountDayDetailView(viewContainer, dateStr, {
-    onBack: () => showCalendar(),
+  return changeView((layer) => mountDayDetailView(layer, dateStr, {
+    onBack: () => showCalendar('day-back'),
     onManageActivities: () => showActivities(),
-  });
+  }), 'day-forward');
 }
 
 let isEditFormOpen = false;
@@ -158,7 +216,7 @@ function showUpdateBanner() {
 function showActivities() {
   setTabBarVisible(true);
   setActiveTab('atividades');
-  mountActivitiesView(viewContainer, {
+  return changeView((layer) => mountActivitiesView(layer, {
     onBack: () => showCalendar(),
     onFormOpen: () => {
       isEditFormOpen = true;
@@ -168,19 +226,19 @@ function showActivities() {
       isEditFormOpen = false;
       setTabBarVisible(true);   // Restore tab bar when exiting form
     },
-  });
+  }), 'fade');
 }
 
 function showSummary() {
   setTabBarVisible(true);
   setActiveTab('resumo');
-  mountSummaryView(viewContainer);
+  return changeView((layer) => mountSummaryView(layer), 'fade');
 }
 
 function showSettings() {
   setTabBarVisible(true);
   setActiveTab('ajustes');
-  mountSettingsView(viewContainer);
+  return changeView((layer) => mountSettingsView(layer), 'fade');
 }
 
 // ── Tab click handling ───────────────────────────────────────────────────────

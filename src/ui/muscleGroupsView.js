@@ -117,6 +117,8 @@ export async function mountMuscleGroupsView(root, { onBack }) {
       </div>
     `;
 
+    requestAnimationFrame(() => root.querySelector('.muscle-groups-screen')?.classList.add('is-sheet-open'));
+
     // Back to Settings
     root.querySelector('#btn-back-settings')?.addEventListener('click', onBack);
 

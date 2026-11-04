@@ -404,6 +404,34 @@ export async function getDayEntry(dateStr) {
 }
 
 /**
+ * Retrieves day entries in [startDate, endDate] with a single range query
+ * on the date keyPath (same pattern as getCompletionsForDateRange).
+ *
+ * @param {string} [startDateStr] – "YYYY-MM-DD"
+ * @param {string} [endDateStr] – "YYYY-MM-DD"
+ * @returns {Promise<Array<{ date: string, rained: boolean, notes: string }>>}
+ */
+export async function getDayEntriesForDateRange(startDateStr, endDateStr) {
+  const db = await getDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction('dayEntries', 'readonly');
+    const store = tx.objectStore('dayEntries');
+
+    let request;
+    if (startDateStr && endDateStr) {
+      request = store.getAll(IDBKeyRange.bound(startDateStr, endDateStr));
+    } else {
+      request = store.getAll();
+    }
+
+    request.onsuccess = () => {
+      resolve(request.result || []);
+    };
+    request.onerror = (event) => reject(event.target.error);
+  });
+}
+
+/**
  * Sets the rained toggle for a specific day.
  * @param {string} dateStr – "YYYY-MM-DD"
  * @param {boolean} rained

@@ -16,6 +16,8 @@
 - RF10: Monthly summary: days at the gym, days it rained, rainy days where
   he skipped the gym.
 - RF11: Export all data to a JSON file and import it back (backup).
+- RF12: Week view as an alternative to the month view, switchable from the calendar tab.
+- RF13: "Hoje" card under the calendar to log today's activities directly from the main screen.
 
 ## Non-functional
 - RNF01: Dark and light mode following the system setting.

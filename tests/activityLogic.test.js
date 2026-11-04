@@ -13,6 +13,7 @@ import {
   isActivityCompleted,
   extractCompletedDates,
   groupCompletionsByDate,
+  rainedDateSet,
   getDayDotIndicators,
   getNextAvailablePresetColor,
   PRESET_COLORS,
@@ -208,6 +209,21 @@ describe('getDayDotIndicators() - grouping, ordering, and overflow', () => {
     { dots: ['#34c759'], hasOverflow: false, total: 1 },
     'ignores deleted or unknown activity IDs'
   );
+});
+
+describe('rainedDateSet()', () => {
+  const rainy = rainedDateSet([
+    { date: '2026-10-28', rained: true },
+    { date: '2026-10-29', rained: false },
+    { date: '2026-10-30', rained: true, notes: 'chuva' },
+    { rained: true },
+    null,
+  ]);
+  assert(rainy.has('2026-10-28'), 'includes days with rained true');
+  assert(rainy.has('2026-10-30'), 'includes another rainy day');
+  assert(!rainy.has('2026-10-29'), 'excludes days with rained false');
+  assertEqual(rainy.size, 2, 'ignores entries without a date string');
+  assertEqual(rainedDateSet(null).size, 0, 'returns empty set for non-arrays');
 });
 
 describe('getNextAvailablePresetColor()', () => {

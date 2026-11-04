@@ -15,11 +15,14 @@ import {
 import {
   groupCompletionsByDate,
   getDayDotIndicators,
+  rainedDateSet,
 } from '../logic/activityLogic.js';
 import {
   getCompletionsForDateRange,
+  getDayEntriesForDateRange,
   getActivities,
 } from '../storage/storage.js';
+import { ICONS } from './icons.js';
 import '../version.js';
 
 /**
@@ -61,7 +64,9 @@ export function mountCalendarView(root, { onDaySelect }) {
             </header>
 
             <div class="cal-weekdays" role="row" aria-hidden="true"></div>
-            <div class="cal-grid" id="cal-grid" role="grid"></div>
+            <div class="cal-grid-stage" id="cal-grid-stage">
+              <div class="cal-grid" id="cal-grid" role="grid"></div>
+            </div>
           </div>
         </div>
       </main>
@@ -70,6 +75,7 @@ export function mountCalendarView(root, { onDaySelect }) {
 
   const titleEl = root.querySelector('#cal-title');
   const gridEl = root.querySelector('#cal-grid');
+  const gridStage = root.querySelector('#cal-grid-stage');
   const weekdaysEl = root.querySelector('.cal-weekdays');
   const todayBtn = root.querySelector('#btn-today');
 
@@ -82,7 +88,11 @@ export function mountCalendarView(root, { onDaySelect }) {
   });
 
   // ── Render helpers ─────────────────────────────────────────────────────────
-  async function render() {
+  let renderId = 0;
+  let monthAnimationTimer = null;
+  async function render(direction = 0) {
+    const id = ++renderId;
+    const oldGrid = direction && gridEl.childElementCount ? gridEl.cloneNode(true) : null;
     titleEl.textContent = formatMonthHeading(currentYear, currentMonth);
     gridEl.innerHTML = '';
 
@@ -99,21 +109,32 @@ export function mountCalendarView(root, { onDaySelect }) {
 
     let completions = [];
     let activities = [];
+    let dayEntries = [];
     try {
-      [completions, activities] = await Promise.all([
+      [completions, activities, dayEntries] = await Promise.all([
         getCompletionsForDateRange(startDateStr, endDateStr),
         getActivities(),
+        getDayEntriesForDateRange(startDateStr, endDateStr),
       ]);
     } catch (err) {
-      console.error('Failed to fetch completions/activities for month', err);
+      console.error('Failed to fetch completions/activities/day entries for month', err);
     }
 
+    if (id !== renderId) return;
+
+    gridStage.querySelectorAll('.cal-grid--leaving').forEach((grid) => grid.remove());
+    gridEl.className = 'cal-grid';
+
     const completionsByDate = groupCompletionsByDate(completions);
+    const rainyDates = rainedDateSet(dayEntries);
+
+    gridEl.classList.toggle('cal-grid--six-weeks', days.length === 42);
 
     days.forEach((date) => {
       const dateStr = toDateString(date);
       const isCurrentMonth = date.getMonth() === currentMonth;
       const isToday = dateStr === todayStr;
+      const rained = rainyDates.has(dateStr);
       const completedIds = completionsByDate[dateStr] || [];
       const hasCompletions = completedIds.length > 0;
       const { dots, hasOverflow } = getDayDotIndicators(completedIds, activities, 4);
@@ -124,6 +145,7 @@ export function mountCalendarView(root, { onDaySelect }) {
         isCurrentMonth ? '' : 'cal-day--other-month',
         isToday ? 'cal-day--today' : '',
         hasCompletions ? 'cal-day--has-completions' : '',
+        rained ? 'cal-day--rained' : '',
       ]
         .filter(Boolean)
         .join(' ');
@@ -132,31 +154,59 @@ export function mountCalendarView(root, { onDaySelect }) {
         .map((color) => `<span class="cal-dot" style="background-color: ${color};"></span>`)
         .join('');
       const moreHtml = hasOverflow ? `<span class="cal-dots-more">+</span>` : '';
+      const rainHtml = rained
+        ? `<span class="cal-day-rain" role="img" aria-label="Choveu">${ICONS['cloud-rain']}</span>`
+        : `<span class="cal-day-rain" aria-hidden="true"></span>`;
 
       btn.innerHTML = `
-        <span class="cal-day-rain" aria-hidden="true"></span>
+        ${rainHtml}
         <span class="cal-day-num">${date.getDate()}</span>
         <span class="cal-day-dots" aria-hidden="true">${dotsHtml}${moreHtml}</span>
       `;
 
-      btn.setAttribute('aria-label', dateStr);
+      btn.setAttribute('aria-label', rained ? `${dateStr}, Choveu` : dateStr);
       btn.setAttribute('data-date', dateStr);
       if (isToday) btn.setAttribute('aria-current', 'date');
 
       btn.addEventListener('click', () => onDaySelect(dateStr));
       gridEl.appendChild(btn);
     });
+
+    if (oldGrid) {
+      const suffix = direction > 0 ? 'next' : 'prev';
+      oldGrid.id = '';
+      oldGrid.className = `cal-grid cal-grid--leaving cal-grid--month-leave-${suffix}`;
+      gridEl.classList.add(`cal-grid--month-enter-${suffix}`);
+      gridStage.appendChild(oldGrid);
+      void gridEl.offsetWidth;
+      gridEl.classList.add('is-animating');
+      oldGrid.classList.add('is-animating');
+      clearTimeout(monthAnimationTimer);
+      let animationDone = false;
+      const finishAnimation = () => {
+        if (animationDone) return;
+        animationDone = true;
+        oldGrid.removeEventListener('transitionend', onTransitionEnd);
+        oldGrid.remove();
+        gridEl.className = gridEl.className.replace(/\s*cal-grid--month-enter-(next|prev)|\s*is-animating/g, '');
+      };
+      const onTransitionEnd = (event) => {
+        if (event.target === oldGrid && event.propertyName === 'transform') finishAnimation();
+      };
+      oldGrid.addEventListener('transitionend', onTransitionEnd);
+      monthAnimationTimer = setTimeout(finishAnimation, 310);
+    }
   }
 
   // ── Navigation ────────────────────────────────────────────────────────────
   root.querySelector('#btn-prev').addEventListener('click', () => {
     ({ year: currentYear, month: currentMonth } = prevMonth(currentYear, currentMonth));
-    render();
+    render(-1);
   });
 
   root.querySelector('#btn-next').addEventListener('click', () => {
     ({ year: currentYear, month: currentMonth } = nextMonth(currentYear, currentMonth));
-    render();
+    render(1);
   });
 
   if (todayBtn) {
@@ -169,4 +219,32 @@ export function mountCalendarView(root, { onDaySelect }) {
 
   // Initial paint
   render();
+
+  // Lock only deliberate horizontal gestures; vertical page scrolling remains native.
+  let swipeStart = null;
+  gridStage.addEventListener('pointerdown', (event) => {
+    swipeStart = { x: event.clientX, y: event.clientY, locked: false };
+  });
+  gridStage.addEventListener('pointermove', (event) => {
+    if (!swipeStart || swipeStart.locked) return;
+    const dx = event.clientX - swipeStart.x;
+    const dy = event.clientY - swipeStart.y;
+    if (Math.abs(dx) < 12 && Math.abs(dy) < 12) return;
+    swipeStart.locked = Math.abs(dx) > Math.abs(dy);
+  });
+  gridStage.addEventListener('pointerup', (event) => {
+    if (!swipeStart) return;
+    const dx = event.clientX - swipeStart.x;
+    const horizontal = swipeStart.locked && Math.abs(dx) >= 48;
+    swipeStart = null;
+    if (!horizontal) return;
+    if (dx < 0) {
+      ({ year: currentYear, month: currentMonth } = nextMonth(currentYear, currentMonth));
+      render(1);
+    } else {
+      ({ year: currentYear, month: currentMonth } = prevMonth(currentYear, currentMonth));
+      render(-1);
+    }
+  });
+  gridStage.addEventListener('pointercancel', () => { swipeStart = null; });
 }
