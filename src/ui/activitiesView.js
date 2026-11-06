@@ -37,7 +37,7 @@ const PALETTE_SVG = `
  * @param {HTMLElement} root
  * @param {{ onBack?: () => void, onFormOpen?: () => void, onFormClose?: () => void }} [options]
  */
-export function mountActivitiesView(root, { onBack, onFormOpen, onFormClose } = {}) {
+export async function mountActivitiesView(root, { onBack, onFormOpen, onFormClose } = {}) {
   let isEditing = false;
   let currentActivity = null;
   let currentActivities = [];
@@ -468,7 +468,7 @@ export function mountActivitiesView(root, { onBack, onFormOpen, onFormClose } = 
 }
 
   // Initial list view
-  renderList();
+  await renderList();
 }
 
 function escapeHtml(str) {

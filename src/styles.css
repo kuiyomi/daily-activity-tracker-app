@@ -176,19 +176,19 @@ body {
 }
 
 .view-layer--incoming { z-index: 2; }
-.view-layer--outgoing { z-index: 1; }
+.view-layer--outgoing { z-index: 1; pointer-events: none; }
 .view-layer--fade-in { opacity: 0; transform: translateX(0); }
 .view-layer--fade-out { opacity: 1; transform: translateX(0); }
-.view-layer--day-forward-in { opacity: 1; transform: translateX(100%); }
+.view-layer--day-forward-in { opacity: 0; transform: translateX(8%); }
 .view-layer--day-forward-out { opacity: 1; transform: translateX(0); }
 .view-layer--day-back-in { opacity: 1; transform: translateX(-8%); }
 .view-layer--day-back-out { opacity: 1; transform: translateX(0); }
 .view-layer--fade-in.is-animating { opacity: 1; }
 .view-layer--fade-out.is-animating { opacity: 0; }
-.view-layer--day-forward-in.is-animating { transform: translateX(0); }
+.view-layer--day-forward-in.is-animating { opacity: 1; transform: translateX(0); }
 .view-layer--day-forward-out.is-animating { opacity: .96; transform: translateX(-8%); }
 .view-layer--day-back-in.is-animating { transform: translateX(0); }
-.view-layer--day-back-out.is-animating { opacity: .96; transform: translateX(100%); }
+.view-layer--day-back-out.is-animating { opacity: 0; transform: translateX(8%); }
 .view-layer.is-animating {
   transition: transform 350ms cubic-bezier(0.32, 0.72, 0, 1), opacity 350ms cubic-bezier(0.32, 0.72, 0, 1);
 }
@@ -218,7 +218,7 @@ body {
   padding-left: var(--safe-left);
   padding-right: var(--safe-right);
   flex-shrink: 0;
-  z-index: 100;
+  z-index: 300;
   transition: transform 200ms ease, opacity 200ms ease;
 }
 
@@ -569,16 +569,17 @@ body {
   position: absolute;
   inset: 0;
   width: 100%;
+  pointer-events: none;
 }
 
-.cal-grid--month-enter-next { transform: translateX(100%); opacity: 0; }
-.cal-grid--month-enter-prev { transform: translateX(-100%); opacity: 0; }
+.cal-grid--month-enter-next { transform: translateX(8%); opacity: 0; }
+.cal-grid--month-enter-prev { transform: translateX(-8%); opacity: 0; }
 .cal-grid--month-leave-next { transform: translateX(0); opacity: 1; }
 .cal-grid--month-leave-prev { transform: translateX(0); opacity: 1; }
 .cal-grid--month-enter-next.is-animating,
 .cal-grid--month-enter-prev.is-animating { transform: translateX(0); opacity: 1; }
-.cal-grid--month-leave-next.is-animating { transform: translateX(-100%); opacity: 0; }
-.cal-grid--month-leave-prev.is-animating { transform: translateX(100%); opacity: 0; }
+.cal-grid--month-leave-next.is-animating { transform: translateX(-8%); opacity: 0; }
+.cal-grid--month-leave-prev.is-animating { transform: translateX(8%); opacity: 0; }
 .cal-grid.is-animating {
   transition: transform 250ms cubic-bezier(0.32, 0.72, 0, 1), opacity 250ms cubic-bezier(0.32, 0.72, 0, 1);
 }
@@ -1059,6 +1060,9 @@ body {
 
 /* Modal Form Styles */
 .ios-modal-header {
+  position: sticky;
+  top: 0;
+  z-index: 1;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -1103,27 +1107,34 @@ body {
   padding-top: 0.75rem;
 }
 
-/* Forms and muscle-group management present as iOS-style bottom sheets. */
-.activity-form-screen,
-.muscle-groups-screen {
+/* Activity form presents as an iOS-style bottom sheet; muscle-groups is a pushed screen. */
+.activity-form-screen {
   position: fixed;
   z-index: 200;
   left: 0;
   right: 0;
   bottom: 0;
+  height: min(92dvh, 760px);
   max-height: min(92dvh, 760px);
   overflow-y: auto;
   border-radius: 14px 14px 0 0;
   background: var(--page-bg);
   box-shadow: 0 -8px 24px rgba(0, 0, 0, .18);
-  transform: translateY(100%);
+  transform: translateY(24px);
   opacity: 0;
   transition: transform 250ms cubic-bezier(0.32, 0.72, 0, 1), opacity 250ms cubic-bezier(0.32, 0.72, 0, 1);
 }
-.activity-form-screen.is-sheet-open,
-.muscle-groups-screen.is-sheet-open { transform: translateY(0); opacity: 1; }
-.activity-form-screen.is-sheet-closing,
-.muscle-groups-screen.is-sheet-closing { transform: translateY(100%); opacity: 0; }
+.activity-form-screen.is-sheet-open { transform: translateY(0); opacity: 1; }
+.activity-form-screen.is-sheet-closing { transform: translateY(24px); opacity: 0; }
+
+.muscle-groups-screen {
+  background: var(--page-bg);
+  transform: translateX(8%);
+  opacity: 0;
+  transition: transform 200ms cubic-bezier(0.32, 0.72, 0, 1), opacity 200ms cubic-bezier(0.32, 0.72, 0, 1);
+}
+.muscle-groups-screen.is-sheet-open { transform: translateX(0); opacity: 1; }
+.muscle-groups-screen.is-sheet-closing { transform: translateX(8%); opacity: 0; }
 
 /* Form Preview Card */
 .form-preview-row {

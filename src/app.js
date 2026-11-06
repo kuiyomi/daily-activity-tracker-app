@@ -93,6 +93,8 @@ const tabBar = root.querySelector('.ios-tab-bar');
 
 let currentTab = 'calendario';
 let navigationId = 0;
+let navigationRequestId = 0;
+let navigationLock = null;
 
 function waitForMotion(element, property, fallbackMs) {
   return new Promise((resolve) => {
@@ -112,43 +114,72 @@ function waitForMotion(element, property, fallbackMs) {
   });
 }
 
-async function changeView(mount, motion = 'fade') {
+async function changeView(mount, motion = 'fade', onRendered) {
   const id = ++navigationId;
   const outgoing = viewContainer.querySelector('.view-layer--current');
   const incoming = document.createElement('div');
-  incoming.className = 'view-layer view-layer--current view-layer--incoming';
-  viewContainer.appendChild(incoming);
+  incoming.className = 'view-layer view-layer--current';
+
+  const lock = { id };
+  navigationLock = lock;
+  let releaseTimer = null;
+  const lockTimeout = new Promise((_, reject) => {
+    // A stalled mount or transition lock can never block navigation for more than ~500ms.
+    releaseTimer = setTimeout(() => {
+      if (navigationLock === lock) navigationLock = null;
+      reject(new Error('Tempo limite de navegação excedido (500ms)'));
+    }, 500);
+  });
 
   try {
-    await mount(incoming);
+    await Promise.race([ Promise.resolve().then(() => mount(incoming)), lockTimeout ]);
+    clearTimeout(releaseTimer);
+    if (navigationLock === lock) navigationLock = null;
     if (id !== navigationId) {
       incoming.remove();
-      return;
+      return false;
     }
     if (!incoming.querySelector('.screen-view')) throw new Error('Tela não foi renderizada');
   } catch (error) {
+    clearTimeout(releaseTimer);
+    if (navigationLock === lock) navigationLock = null;
     incoming.remove();
     console.error('Falha ao renderizar tela:', error);
-    if (!outgoing) viewContainer.innerHTML = '<p class="view-error">Não foi possível abrir esta tela. Tente novamente.</p>';
-    return;
+    if (outgoing && id === navigationId) {
+      Array.from(viewContainer.children).forEach((child) => {
+        if (child !== outgoing) child.remove();
+      });
+      outgoing.className = 'view-layer view-layer--current';
+    } else if (!outgoing && !viewContainer.querySelector('.view-layer--current')) {
+      viewContainer.innerHTML = '<p class="view-error">Não foi possível abrir esta tela. Tente novamente.</p>';
+    }
+    return false;
   }
+
+  Array.from(viewContainer.children).forEach((child) => {
+    if (child !== outgoing) child.remove();
+  });
+
+  viewContainer.prepend(incoming);
+  if (onRendered) onRendered();
 
   if (!outgoing) {
-    incoming.classList.remove('view-layer--incoming');
-    return;
+    return true;
   }
 
-  outgoing.classList.remove('view-layer--current');
-  outgoing.classList.add('view-layer--outgoing', `view-layer--${motion}-out`);
-  incoming.classList.add(`view-layer--${motion}-in`);
+  outgoing.className = `view-layer view-layer--outgoing view-layer--${motion}-out`;
+  incoming.classList.add('view-layer--incoming', `view-layer--${motion}-in`);
   // Force the initial transform to paint before moving both layers.
   void incoming.offsetWidth;
   outgoing.classList.add('is-animating');
   incoming.classList.add('is-animating');
-  await Promise.all([waitForMotion(incoming, 'transform', motion === 'fade' ? 230 : 430), waitForMotion(outgoing, 'transform', motion === 'fade' ? 230 : 430)]);
-  if (id !== navigationId) return;
+  const prop = motion === 'fade' ? 'opacity' : 'transform';
+  const fallbackMs = motion === 'fade' ? 230 : 430;
+  await Promise.all([waitForMotion(incoming, prop, fallbackMs), waitForMotion(outgoing, prop, fallbackMs)]);
   outgoing.remove();
+  if (id !== navigationId) return true;
   incoming.className = 'view-layer view-layer--current';
+  return true;
 }
 
 function setTabBarVisible(visible) {
@@ -174,18 +205,49 @@ function setActiveTab(tabName) {
   });
 }
 
+async function navigate(tabName, mount, motion = 'fade') {
+  const requestId = ++navigationRequestId;
+  const previousTab = currentTab;
+  const rendered = await changeView(mount, motion, () => {
+    isEditFormOpen = false;
+    setTabBarVisible(true);
+    setActiveTab(tabName);
+  });
+
+  if (!rendered && requestId === navigationRequestId) {
+    // The old layer remains mounted; restore its tab selection for the latest request.
+    setActiveTab(previousTab);
+    return false;
+  }
+
+  return rendered;
+}
+
 function showCalendar(motion = 'fade') {
-  setTabBarVisible(true);
-  setActiveTab('calendario');
-  return changeView((layer) => mountCalendarView(layer, {
-    onDaySelect: (dateStr) => showDayDetail(dateStr),
-  }), motion);
+  return navigate('calendario', async (layer) => {
+    await mountCalendarView(layer, {
+      onDaySelect: (dateStr) => showDayDetail(dateStr),
+    });
+    if (!layer.querySelector('.cal-day')) {
+      await new Promise((resolve) => {
+        const observer = new MutationObserver(() => {
+          if (layer.querySelector('.cal-day')) {
+            observer.disconnect();
+            resolve();
+          }
+        });
+        observer.observe(layer, { childList: true, subtree: true });
+        setTimeout(() => {
+          observer.disconnect();
+          resolve();
+        }, 250);
+      });
+    }
+  }, motion);
 }
 
 function showDayDetail(dateStr) {
-  // Day detail keeps the tab bar visible
-  setTabBarVisible(true);
-  return changeView((layer) => mountDayDetailView(layer, dateStr, {
+  return navigate('calendario', (layer) => mountDayDetailView(layer, dateStr, {
     onBack: () => showCalendar('day-back'),
     onManageActivities: () => showActivities(),
   }), 'day-forward');
@@ -214,9 +276,7 @@ function showUpdateBanner() {
 }
 
 function showActivities() {
-  setTabBarVisible(true);
-  setActiveTab('atividades');
-  return changeView((layer) => mountActivitiesView(layer, {
+  return navigate('atividades', (layer) => mountActivitiesView(layer, {
     onBack: () => showCalendar(),
     onFormOpen: () => {
       isEditFormOpen = true;
@@ -230,15 +290,11 @@ function showActivities() {
 }
 
 function showSummary() {
-  setTabBarVisible(true);
-  setActiveTab('resumo');
-  return changeView((layer) => mountSummaryView(layer), 'fade');
+  return navigate('resumo', (layer) => mountSummaryView(layer), 'fade');
 }
 
 function showSettings() {
-  setTabBarVisible(true);
-  setActiveTab('ajustes');
-  return changeView((layer) => mountSettingsView(layer), 'fade');
+  return navigate('ajustes', (layer) => mountSettingsView(layer), 'fade');
 }
 
 // ── Tab click handling ───────────────────────────────────────────────────────

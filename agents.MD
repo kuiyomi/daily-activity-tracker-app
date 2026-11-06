@@ -1,95 +1,53 @@
-# Project: Dad's Calendar (PWA)
-
-## Goal
-Simple personal calendar app for iPhone (installed via Add to Home Screen).
-Monthly view, daily activity checklist, muscle-group tracking for gym,
-"rained today" toggle, dark/light mode.
+# Agenda (PWA)
+iOS-style activity calendar for my dad. pt-BR UI, offline, no backend.
+Installed on iPhone via Add to Home Screen, hosted on GitHub Pages.
 
 ## Stack
-- Plain HTML, CSS and vanilla JavaScript (ES modules). No frameworks, no build step.
-- Data in IndexedDB (or localStorage if the agent justifies it). No backend.
-- manifest.webmanifest + service worker for offline use
-- Hosted on GitHub Pages (static files only)
+- Plain HTML/CSS/vanilla JS (ES modules). No frameworks, no build step.
+- IndexedDB (database "DadsCalendarDB") for data; localStorage only for the theme.
+- Service worker (sw.js) precaches the app for offline use.
+- Relative paths only (served from /<repo-name>/; file names are case-sensitive).
+- Layout: src/app.js (router, tab bar), src/ui/*View.js, src/logic/ (pure, unit tested),
+  src/ui/icons.js (inline Phosphor SVGs), src/styles.css, tests/.
 
-## Rules
-- Read REQUIREMENTS.md before making changes
-- One feature per change; explain what you changed
-- Never rewrite files unrelated to the current task
-- Mobile-first, designed for iPhone Safari (viewport-fit=cover, safe-area insets)
-- Dark/light mode via CSS variables + prefers-color-scheme
-- All UI text in Portuguese (pt-BR)
-- Large text, big tap targets (min 44px)
-- Dates: use local date strings (YYYY-MM-DD), avoid timezone bugs with toISOString()
-- Keep date/stat logic in separate pure functions in /src/logic and add tests for them
-- Include JSON export and import of all data
-- Use relative paths everywhere (e.g. ./src/app.js, not /src/app.js), because
-  GitHub Pages serves the site from /<repo-name>/
-- Use Intl.DateTimeFormat('pt-BR') for month/weekday names; set <html lang="pt-BR">
+## How to work
+- Do only what the task says. Smallest change that works; no refactors; don't touch
+  unrelated files.
+- Read REQUIREMENTS.md only if the task mentions an RF number.
+- Don't commit or push.
+- Reply in at most 5 lines: what changed, what you checked, anything uncertain.
 
-## Structure
-index.html  manifest.webmanifest  sw.js  /src (ui, logic, storage)  /tests  /icons
+## Verification (match effort to the change)
+- Styling, spacing, copy: no tests. Don't run test suites.
+- Logic change: run the related unit tests only.
+- Behavior, navigation or data change: add or run one headless-browser check for that
+  flow only, with seeded data.
+- Never run the full test suites unless I ask; I run them before releasing.
+- Output only failures plus one summary line. Screenshots only if I ask.
 
-## Design: iOS look and feel
-- Font: system font stack (-apple-system, "SF Pro Text", system-ui, sans-serif). No web fonts.
-- Body text 17px; support the iOS text size setting using font: -apple-system-body
-  as the base, with rem units elsewhere
-- Use iOS system colors via CSS variables, for light and dark:
-  - blue accent #007AFF (dark: #0A84FF), green #34C759, red #FF3B30
-  - page background: light #F2F2F7, dark #000000
-  - card/list background: light #FFFFFF, dark #1C1C1E
-  - separators: thin 0.5px hairlines, low contrast
-- Lists as "inset grouped" cards: rounded corners (10-12px), rows with
-  separators, no heavy borders or shadows
-- Toggles use an iOS-style switch (e.g. "Choveu"); use a segmented control
-  where choosing between 2-3 options
-- Primary navigation: bottom tab bar (Calendário, Atividades, Resumo) with
-  safe-area padding, not buttons in the header
-- Screens that open on top of others (new activity, muscle groups) appear as a
-  bottom sheet or slide-in page with a back button, as in native iOS
-- Large title at the top of main screens that shrinks to a standard title is nice
-  but optional; don't overcomplicate
-- Motion: short, subtle transitions (150-250ms); respect prefers-reduced-motion
-- No hover effects (touch only). Set -webkit-tap-highlight-color: transparent,
-  touch-action: manipulation, and a visible pressed state on every tappable element
-- Inputs must use font-size >= 16px (otherwise iOS zooms the page on focus)
-- Icons: emoji or simple inline SVG, consistent stroke width; no icon libraries
+## UI rules
+- iOS look: system font stack, iOS system colors via CSS variables (light/dark follows
+  the system unless the user forces a theme), inset-grouped cards, 44px minimum tap
+  targets, pressed states, no hover, inputs at 16px or larger, safe-area insets.
+- All UI text in pt-BR, sentence case.
+- Tabs: Calendário, Atividades, Ajustes (Resumo exists but is hidden until RF10).
+- Pushed screens (back chevron) slide from the right and keep the tab bar. Sheets
+  (Cancelar/Salvar) slide up and hide the tab bar. Never mix them.
+- Motion: transform/opacity only, 400ms max, honor prefers-reduced-motion.
+- Icons: inline SVGs from src/ui/icons.js. No emoji, no runtime icon libraries.
+- Dates are local YYYY-MM-DD strings (never toISOString()).
 
-## UX rules (priority)
-- The user is not technical. Every screen must be understandable without explanation.
-- Opening the app on today's date should let him log the day in at most 2 taps
-- Never hide important actions behind gestures (long-press, swipe) alone;
-  they may exist as shortcuts, but there must always be a visible button
-- Destructive actions (deleting an activity) require a confirmation that says
-  what will be lost, in plain Portuguese
-- Every change saves immediately; no "Save" button for simple toggles
-- Show clear empty states ("Nenhuma atividade ainda. Toque em + para criar.")
-- Short, friendly pt-BR labels; no technical jargon or error codes shown to the user
-- Check contrast in both light and dark mode
-- Pushed screens (back chevron) slide from the right, keep the tab bar, no
-  rounded top. Sheets (Cancelar/Salvar) slide up and hide the tab bar. Never mix them.
+## UX rules
+- The user is not technical: at most 2 taps to log a day, a visible button for every
+  action (gestures only as shortcuts), confirm destructive actions in plain pt-BR,
+  autosave, clear empty states, friendly errors.
+- Render a screen successfully before hiding other UI. If it fails, restore the previous
+  screen, console.error, and show a friendly message. Never a blank screen.
 
-## Release and data safety
-- Releases: edit src/version.js, then run `npm run version:sync` (it also stamps sw.js).
-- Never rename the IndexedDB database (DadsCalendarDB). Any schema change must bump
-  the DB version with an onupgradeneeded migration that preserves existing data,
-  with a test that data from the previous version survives.
-- Every file in the service worker's precache list must exist on GitHub Pages
-  (file names are case-sensitive there). When adding or renaming files, update the list.
-- New screens and interactions must follow the motion rules (subtle, transform and
-  opacity only, respecting prefers-reduced-motion).
-- After every change, state how you verified it (tests run, browser checks).
-
-  ## Verification and releases
-- Unit tests are not enough for UI work. Every UI change must also be verified in a
-  headless browser with seeded IndexedDB data, asserting what is actually rendered.
-  Report exactly what was checked and show the output.
-- Render a screen successfully before hiding other UI (like the tab bar). If a screen
-  fails to render, restore the previous state, log with console.error and show a
-  friendly pt-BR message, never a blank screen.
-- Every change meant for deployment ends with a version bump (patch for fixes, minor
-  for features) via src/version.js and `npm run version:sync`. Without a bump the
-  installed app won't update.
-- Never rename the IndexedDB database. Schema changes need a version bump with an
+## Data and releases
+- Never rename the database. A schema change bumps the IndexedDB version with an
   onupgradeneeded migration that preserves data, plus a test that old data survives.
-- Every file in the service worker precache list must exist on GitHub Pages
-  (file names are case-sensitive there).
+- Every file in the service worker precache list must exist; update the list when adding files.
+- Deployable changes end with a version bump: edit src/version.js, then
+  `npm run version:sync` (patch for fixes, minor for features).
+- If a test you ran fails, find out whether the test is stale or the code is wrong, and say which.
