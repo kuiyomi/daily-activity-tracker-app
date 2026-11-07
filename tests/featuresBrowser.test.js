@@ -85,13 +85,36 @@ server.listen(0, '127.0.0.1', async () => {
       tx.objectStore('dayEntries').clear();
       await new Promise((r) => { tx.oncomplete = r; });
 
-      // Create two activities: one with usesMuscleGroups, one without
+      // Create two activities: Academia with groups (one multiple, one single), Corrida without groups
       await saveActivity({
         id: 'act_academia',
         name: 'Academia',
         icon: 'barbell',
         color: '#007aff',
-        usesMuscleGroups: true,
+        groups: [
+          {
+            id: 'grp_grupos_musculares',
+            name: 'Grupos musculares',
+            multiple: true,
+            archived: false,
+            options: [
+              { id: 'opt_peito', name: 'Peito', archived: false },
+              { id: 'opt_triceps', name: 'Tríceps', archived: false },
+              { id: 'opt_ombros', name: 'Ombros', archived: false },
+              { id: 'opt_biceps', name: 'Bíceps', archived: false },
+            ],
+          },
+          {
+            id: 'grp_esforco',
+            name: 'Nível de esforço',
+            multiple: false,
+            archived: false,
+            options: [
+              { id: 'opt_moderado', name: 'Moderado', archived: false },
+              { id: 'opt_intenso', name: 'Intenso', archived: false },
+            ],
+          },
+        ],
       });
 
       await saveActivity({
@@ -99,16 +122,16 @@ server.listen(0, '127.0.0.1', async () => {
         name: 'Corrida',
         icon: 'person-simple-run',
         color: '#34c759',
-        usesMuscleGroups: false,
+        groups: [],
       });
 
-      // Seed Day 2026-10-28: Academia done with Peito and Tríceps
-      await setCompletion('2026-10-28', 'act_academia', true, ['mg_peito', 'mg_triceps']);
+      // Seed Day 2026-10-28: Academia done with Peito, Tríceps, and Moderado
+      await setCompletion('2026-10-28', 'act_academia', true, ['opt_peito', 'opt_triceps', 'opt_moderado']);
       await setDayRained('2026-10-28', true);
       await setDayNotes('2026-10-28', 'Treino forte com chuva lá fora');
     });
 
-    assert(true, 'Banco semeado com atividades, grupos musculares, conclusão e registro do dia');
+    assert(true, 'Banco semeado com atividades, detalhes (grupos), conclusão e registro do dia');
 
     console.log('\n--- Teste 2: Abertura do dia e verificação de Choveu, Anotações e Chips ---');
     // Open Day 2026-10-28 via day button or direct call
@@ -139,12 +162,20 @@ server.listen(0, '127.0.0.1', async () => {
     );
     assertEqual(isAcademiaDone, true, 'Atividade Academia está marcada como concluída');
 
-    // Verify chips container visible for Academia
+    // Verify groups container visible for Academia
     const isChipsVisible = await page.$eval(
       '#chips-container-act_academia',
       (el) => !el.classList.contains('hidden')
     );
-    assertEqual(isChipsVisible, true, 'Chips de grupos musculares visíveis para Academia');
+    assertEqual(isChipsVisible, true, 'Container de grupos visível para Academia');
+
+    // Verify grouped cards with headers
+    const groupHeaders = await page.$$eval(
+      '#chips-container-act_academia .activity-group-header span',
+      (els) => els.map((el) => el.textContent.trim())
+    );
+    assertEqual(groupHeaders[0], 'Grupos musculares', '1º card agrupado tem cabeçalho "Grupos musculares"');
+    assertEqual(groupHeaders[1], 'Nível de esforço', '2º card agrupado tem cabeçalho "Nível de esforço"');
 
     // Verify selected chips
     const selectedChips = await page.$$eval(
@@ -153,22 +184,34 @@ server.listen(0, '127.0.0.1', async () => {
     );
     assert(selectedChips.includes('Peito'), 'Chip Peito está selecionado');
     assert(selectedChips.includes('Tríceps'), 'Chip Tríceps está selecionado');
-    assertEqual(selectedChips.length, 2, 'Exatamente 2 chips selecionados');
+    assert(selectedChips.includes('Moderado'), 'Chip Moderado está selecionado');
+    assertEqual(selectedChips.length, 3, 'Exatamente 3 chips selecionados');
 
     // Verify subtitle under Academia name
     const subtitleText = await page.$eval('#subtitle-act_academia', (el) => el.textContent.trim());
-    assertEqual(subtitleText, 'Peito, Tríceps', 'Subtítulo exibe "Peito, Tríceps"');
+    assertEqual(subtitleText, 'Peito, Tríceps, Moderado', 'Subtítulo exibe "Peito, Tríceps, Moderado"');
 
     // Verify Corrida does NOT have chips container
     const corridaChips = await page.$('#chips-container-act_corrida');
-    assertEqual(corridaChips, null, 'Atividade Corrida (usesMuscleGroups: false) não possui chips');
+    assertEqual(corridaChips, null, 'Atividade Corrida (sem grupos) não possui container de chips');
 
-    console.log('\n--- Teste 3: Alteração de chips e notas com persistência após reload ---');
-    // Select chip Ombros
-    await page.click('#chips-container-act_academia button[data-mg-id="mg_ombros"]');
+    console.log('\n--- Teste 3: Alteração de chips (multiple=false e multiple=true) com persistência ---');
+    // Test multiple=false: click "Intenso" in Nível de esforço, "Moderado" should be unselected
+    await page.click('#chips-container-act_academia button[data-opt-id="opt_intenso"]');
+
+    const selectedChipsAfterSingle = await page.$$eval(
+      '#chips-container-act_academia [data-group-id="grp_esforco"] .group-chip.selected',
+      (els) => els.map((el) => el.textContent.trim())
+    );
+    assertEqual(selectedChipsAfterSingle.length, 1, 'Grupo multiple=false permite apenas 1 opção selecionada');
+    assertEqual(selectedChipsAfterSingle[0], 'Intenso', 'Apenas "Intenso" está selecionado no grupo de esforço');
+
+    // Select chip Ombros (multiple=true)
+    await page.click('#chips-container-act_academia button[data-opt-id="opt_ombros"]');
 
     const updatedSubtitle = await page.$eval('#subtitle-act_academia', (el) => el.textContent.trim());
     assert(updatedSubtitle.includes('Ombros'), 'Subtítulo atualizado incluindo "Ombros"');
+    assert(updatedSubtitle.includes('Intenso'), 'Subtítulo atualizado incluindo "Intenso"');
 
     // Edit notes and toggle rain switch
     await page.$eval('#day-notes-input', (el) => {
@@ -204,6 +247,7 @@ server.listen(0, '127.0.0.1', async () => {
       (els) => els.map((el) => el.textContent.trim())
     );
     assert(chipsAfterReload.includes('Ombros'), 'Chip Ombros continuou selecionado após reload');
+    assert(chipsAfterReload.includes('Intenso'), 'Chip Intenso continuou selecionado após reload');
 
     console.log('\n--- Teste 4: Desmarcar atividade limpa grupos e oculta chips ---');
     await page.click('.activity-check-row[data-id="act_academia"]');
@@ -217,134 +261,7 @@ server.listen(0, '127.0.0.1', async () => {
     const subtitleCleared = await page.$eval('#subtitle-act_academia', (el) => el.textContent.trim());
     assertEqual(subtitleCleared, '', 'Subtítulo limpo ao desmarcar atividade');
 
-    console.log('\n--- Teste 5: Tela de grupos musculares em Ajustes e arquivamento ---');
-    // Open Ajustes tab
-    await (await page.waitForSelector('[data-tab="ajustes"]')).click();
-    await page.waitForSelector('.settings-screen');
-
-    // Verify Cleanup 2: Appearance segmented control has standalone track without extra card
-    const extraCardAroundAppearance = await page.$('.appearance-section .inset-group');
-    assertEqual(extraCardAroundAppearance, null, 'Segmented control de Aparência não possui card envolvente extra');
-
-    const trackWrapper = await page.$('.appearance-section .segmented-control-track-wrapper');
-    assert(Boolean(trackWrapper), 'Segmented control de Aparência usa segmented-control-track-wrapper limpo');
-
-    const segmentStyles = await page.evaluate(() => {
-      const track = document.querySelector('.segmented-control-track-wrapper');
-      const active = document.querySelector('.ios-segment-btn.active');
-      const trackCs = getComputedStyle(track);
-      const activeCs = getComputedStyle(active);
-      return {
-        trackBg: trackCs.backgroundColor,
-        thumbBg: activeCs.backgroundColor,
-        minHeight: parseFloat(activeCs.minHeight),
-      };
-    });
-    assert(segmentStyles.minHeight >= 44, 'Segmentos de Aparência têm pelo menos 44px de altura');
-    assert(Boolean(segmentStyles.trackBg), 'Trilha do segmented control tem cor de preenchimento');
-
-    const themeThumbs = await page.evaluate(() => {
-      document.querySelector('[data-theme-val="light"]').click();
-      const lightThumb = getComputedStyle(document.documentElement)
-        .getPropertyValue('--segmented-thumb')
-        .trim()
-        .toLowerCase();
-      document.querySelector('[data-theme-val="dark"]').click();
-      const darkThumb = getComputedStyle(document.documentElement)
-        .getPropertyValue('--segmented-thumb')
-        .trim()
-        .toLowerCase();
-      return { lightThumb, darkThumb };
-    });
-    assert(themeThumbs.lightThumb === '#ffffff', 'Segmento ativo no tema claro usa branco (#ffffff)');
-    assert(themeThumbs.darkThumb === '#636366', 'Segmento ativo no tema escuro usa cinza mais claro (#636366)');
-
-    await page.evaluate(() => {
-      document.querySelector('[data-theme-val="auto"]').click();
-    });
-
-    // Navigate to Grupos musculares
-    await (await page.waitForSelector('#btn-goto-muscle-groups')).click();
-    await page.waitForSelector('.muscle-groups-screen');
-
-    const mgTitle = await page.$eval('.day-large-title', (el) => el.textContent.trim());
-    assertEqual(mgTitle, 'Grupos musculares', 'Tela de Grupos musculares aberta');
-
-    // Add a new muscle group
-    await page.type('#input-new-mg-name', 'Antebraço');
-    await page.click('#btn-add-mg');
-    // Wait for the list to re-render with the new group (name is unique, check by text content)
-    await page.waitForFunction(() => {
-      const names = Array.from(document.querySelectorAll('.mg-item-name'));
-      return names.some((el) => el.textContent.trim() === 'Antebraço');
-    });
-    assert(true, 'Novo grupo "Antebraço" adicionado');
-
-    // Archive Bíceps
-    page.on('dialog', async (dialog) => {
-      await dialog.accept();
-    });
-
-    const removeBicepsBtn = await page.waitForSelector('.mg-remove-btn[data-name="Bíceps"]');
-    await removeBicepsBtn.click();
-    await new Promise((r) => setTimeout(r, 400));
-
-    const activeGroupsAfter = await page.$$eval('.mg-item-name', (els) =>
-      els.map((el) => el.textContent.trim())
-    );
-    assert(!activeGroupsAfter.includes('Bíceps'), 'Grupo Bíceps foi arquivado e removido da lista ativa');
-    assert(activeGroupsAfter.includes('Antebraço'), 'Grupo Antebraço permanece na lista ativa');
-
-    console.log('\n--- Teste 6: Grupos arquivados continuam no histórico mas somem de novas seleções ---');
-    // Seed a past day with the archived Bíceps
-    await page.evaluate(async () => {
-      const { setCompletion } = await import('./src/storage/storage.js');
-      await setCompletion('2026-10-20', 'act_academia', true, ['mg_biceps']);
-    });
-
-    // Open past day (2026-10-20)
-    await page.evaluate(async () => {
-      const { mountDayDetailView } = await import('./src/ui/dayDetailView.js');
-      const container = document.querySelector('#view-container');
-      await mountDayDetailView(container, '2026-10-20', {
-        onBack: () => {},
-        onManageActivities: () => {},
-      });
-    });
-    await page.waitForSelector('.day-detail-screen');
-    await page.waitForSelector('#chips-container-act_academia');
-
-    const pastSubtitle = await page.$eval('#subtitle-act_academia', (el) => el.textContent.trim());
-    assertEqual(pastSubtitle, 'Bíceps', 'Histórico do dia passado continua exibindo o grupo arquivado "Bíceps"');
-
-    const pastChips = await page.$$eval(
-      '#chips-container-act_academia .muscle-chip',
-      (els) => els.map((el) => el.textContent.trim())
-    );
-    assert(pastChips.includes('Bíceps'), 'Chip Bíceps permanece visível no dia em que foi utilizado');
-
-    // Open a fresh day (2026-10-21) where Bíceps was NOT used
-    await page.evaluate(async () => {
-      const { setCompletion: sc } = await import('./src/storage/storage.js');
-      const { mountDayDetailView } = await import('./src/ui/dayDetailView.js');
-      await sc('2026-10-21', 'act_academia', true, []);
-      const container = document.querySelector('#view-container');
-      await mountDayDetailView(container, '2026-10-21', {
-        onBack: () => {},
-        onManageActivities: () => {},
-      });
-    });
-    await page.waitForSelector('.day-detail-screen');
-    await page.waitForSelector('#chips-container-act_academia');
-
-    const freshChips = await page.$$eval(
-      '#chips-container-act_academia .muscle-chip',
-      (els) => els.map((el) => el.textContent.trim())
-    );
-    assert(!freshChips.includes('Bíceps'), 'Grupo arquivado Bíceps não aparece para novas seleções');
-    assert(freshChips.includes('Antebraço'), 'Novo grupo Antebraço aparece para seleção');
-
-    console.log('\n--- Teste 7: Tab bar e navegação continuam funcionando perfeitamente ---');
+    console.log('\n--- Teste 5: Tab bar e navegação continuam funcionando perfeitamente ---');
     const tabBarVisible = await page.$eval('.ios-tab-bar', (el) => !el.classList.contains('hidden'));
     assert(tabBarVisible, 'Tab bar está visível na tela de detalhes do dia');
 
@@ -360,8 +277,12 @@ server.listen(0, '127.0.0.1', async () => {
     await page.waitForSelector('.settings-screen');
     assert(true, 'Navegação para Ajustes funciona');
 
+    // Confirm Ajustes no longer has "Grupos musculares"
+    const mgRowInSettings = await page.$('#btn-goto-muscle-groups');
+    assertEqual(mgRowInSettings, null, 'Ajustes não possui mais a linha de grupos musculares');
+
     console.log('\n────────────────────────────────────────');
-    console.log('Todos os testes de ponta a ponta (RF05, RF06, RF09, Migração e Cleanups) passaram com sucesso!');
+    console.log('Todos os testes de ponta a ponta dos detalhes de atividade passaram com sucesso!');
 
     if (pageErrors.length > 0) {
       console.warn('Avisos de erros capturados:', pageErrors);

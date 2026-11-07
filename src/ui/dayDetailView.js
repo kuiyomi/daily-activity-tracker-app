@@ -3,7 +3,7 @@
  * - "Choveu" iOS-style switch with cloud-rain icon
  * - "Anotações" auto-saving textarea
  * - Activity checklist
- * - Muscle groups chips for activities with usesMuscleGroups
+ * - Per-activity groups ("detalhes") displayed as grouped cards with chips
  */
 
 import { parseDateString } from '../logic/dateUtils.js';
@@ -11,11 +11,10 @@ import {
   getActivities,
   getCompletionsWithDetailsForDate,
   setCompletion,
-  setCompletionMuscleGroups,
+  setCompletionOptionIds,
   getDayEntry,
   setDayRained,
   setDayNotes,
-  getMuscleGroups,
 } from '../storage/storage.js';
 import { ICONS, renderIconGlyph } from './icons.js';
 import '../version.js';
@@ -127,11 +126,10 @@ export async function mountDayDetailView(root, dateStr, { onBack, onManageActivi
   const notesTextarea = root.querySelector('#day-notes-input');
 
   try {
-    const [activities, completionsList, dayEntry, allMuscleGroups] = await Promise.all([
+    const [activities, completionsList, dayEntry] = await Promise.all([
       getActivities(),
       getCompletionsWithDetailsForDate(dateStr),
       getDayEntry(dateStr),
-      getMuscleGroups(true), // include archived for historical display
     ]);
 
     // Setup Choveu switch
@@ -165,17 +163,23 @@ export async function mountDayDetailView(root, dateStr, { onBack, onManageActivi
     });
     notesTextarea.addEventListener('blur', saveNotes);
 
-    // Muscle group maps
-    const muscleGroupMap = new Map(allMuscleGroups.map((mg) => [mg.id, mg]));
-
     // Completions map: activityId -> completion object
     const completionMap = new Map(completionsList.map((c) => [c.activityId, c]));
 
-    function formatSubtitle(muscleGroupIds = []) {
-      if (!muscleGroupIds || muscleGroupIds.length === 0) return '';
-      const names = muscleGroupIds
-        .map((id) => muscleGroupMap.get(id)?.name)
-        .filter(Boolean);
+    function formatSubtitle(act, optionIds = []) {
+      if (!act || !Array.isArray(act.groups) || !Array.isArray(optionIds) || optionIds.length === 0) {
+        return '';
+      }
+      const optSet = new Set(optionIds);
+      const names = [];
+      for (const group of act.groups) {
+        if (!Array.isArray(group.options)) continue;
+        for (const opt of group.options) {
+          if (optSet.has(opt.id)) {
+            names.push(opt.name);
+          }
+        }
+      }
       return names.join(', ');
     }
 
@@ -196,13 +200,13 @@ export async function mountDayDetailView(root, dateStr, { onBack, onManageActivi
           .map((act) => {
             const comp = completionMap.get(act.id);
             const isDone = Boolean(comp);
-            const selectedMgIds = comp?.muscleGroupIds || [];
-            const subtitleText = formatSubtitle(selectedMgIds);
+            const selectedOptionIds = comp?.optionIds || [];
+            const subtitleText = formatSubtitle(act, selectedOptionIds);
 
-            // Available groups for chips: all active groups PLUS any archived group already selected
-            const availableGroups = allMuscleGroups.filter(
-              (mg) => !mg.archived || selectedMgIds.includes(mg.id)
-            );
+            // Non-archived groups for this activity
+            const nonArchivedGroups = Array.isArray(act.groups)
+              ? act.groups.filter((g) => !g.archived)
+              : [];
 
             return `
               <div class="activity-item-wrapper" data-act-id="${act.id}">
@@ -223,35 +227,55 @@ export async function mountDayDetailView(root, dateStr, { onBack, onManageActivi
                   </div>
                   <div class="activity-row-label">
                     <span class="activity-name-text">${escapeHtml(act.name)}</span>
-                    ${
-                      act.usesMuscleGroups
-                        ? `<span class="activity-subtitle-text" id="subtitle-${act.id}">${escapeHtml(subtitleText)}</span>`
-                        : ''
-                    }
+                    <span class="activity-subtitle-text" id="subtitle-${act.id}">${escapeHtml(subtitleText)}</span>
                   </div>
                 </div>
 
                 ${
-                  act.usesMuscleGroups
+                  nonArchivedGroups.length > 0
                     ? `
                       <div
-                        class="muscle-chips-container ${isDone ? '' : 'hidden'}"
+                        class="activity-groups-container muscle-chips-container ${isDone ? '' : 'hidden'}"
                         id="chips-container-${act.id}"
-                        aria-label="Grupos musculares para ${escapeHtml(act.name)}"
+                        aria-label="Detalhes de ${escapeHtml(act.name)}"
                       >
-                        ${availableGroups
-                          .map((mg) => {
-                            const isChipSelected = selectedMgIds.includes(mg.id);
+                        ${nonArchivedGroups
+                          .map((group) => {
+                            const options = Array.isArray(group.options)
+                              ? group.options.filter((opt) => !opt.archived || selectedOptionIds.includes(opt.id))
+                              : [];
                             return `
-                              <button
-                                type="button"
-                                class="muscle-chip ${isChipSelected ? 'selected' : ''}"
-                                data-act-id="${act.id}"
-                                data-mg-id="${mg.id}"
-                                aria-pressed="${isChipSelected}"
-                              >
-                                ${escapeHtml(mg.name)}
-                              </button>
+                              <div class="activity-group-card inset-section" data-group-id="${group.id}">
+                                <div class="activity-group-header inset-section-header">
+                                  <span>${escapeHtml(group.name)}</span>
+                                </div>
+                                <div class="inset-group group-chips-card">
+                                  <div
+                                    class="group-chips-container"
+                                    role="group"
+                                    aria-label="${escapeHtml(group.name)}"
+                                  >
+                                    ${options
+                                      .map((opt) => {
+                                        const isChipSelected = selectedOptionIds.includes(opt.id);
+                                        return `
+                                          <button
+                                            type="button"
+                                            class="group-chip muscle-chip ${isChipSelected ? 'selected' : ''}"
+                                            data-act-id="${act.id}"
+                                            data-group-id="${group.id}"
+                                            data-opt-id="${opt.id}"
+                                            data-mg-id="${opt.id}"
+                                            aria-pressed="${isChipSelected}"
+                                          >
+                                            ${escapeHtml(opt.name)}
+                                          </button>
+                                        `;
+                                      })
+                                      .join('')}
+                                  </div>
+                                </div>
+                              </div>
                             `;
                           })
                           .join('')}
@@ -284,7 +308,7 @@ export async function mountDayDetailView(root, dateStr, { onBack, onManageActivi
             date: dateStr,
             activityId,
             completedAt: Date.now(),
-            muscleGroupIds: [],
+            optionIds: [],
           };
           completionMap.set(activityId, newComp);
 
@@ -301,14 +325,14 @@ export async function mountDayDetailView(root, dateStr, { onBack, onManageActivi
             console.error('Erro ao marcar atividade:', err);
           }
         } else {
-          // Unchecking clears muscle groups and removes completion
+          // Unchecking clears options and removes completion
           row.classList.remove('activity-check-row--done');
           row.setAttribute('aria-checked', 'false');
           completionMap.delete(activityId);
 
           if (chipsContainer) {
             chipsContainer.classList.add('hidden');
-            chipsContainer.querySelectorAll('.muscle-chip').forEach((c) => {
+            chipsContainer.querySelectorAll('.group-chip, .muscle-chip').forEach((c) => {
               c.classList.remove('selected');
               c.setAttribute('aria-pressed', 'false');
             });
@@ -334,40 +358,70 @@ export async function mountDayDetailView(root, dateStr, { onBack, onManageActivi
       });
     });
 
-    // Muscle chip click listeners
-    listEl.querySelectorAll('.muscle-chip').forEach((chip) => {
+    // Option chip click listeners
+    listEl.querySelectorAll('.group-chip, .muscle-chip').forEach((chip) => {
       chip.addEventListener('click', async (e) => {
         e.stopPropagation(); // prevent clicking activity row
 
         const actId = chip.dataset.actId;
-        const mgId = chip.dataset.mgId;
-        const subtitleEl = root.querySelector(`#subtitle-${actId}`);
+        const groupId = chip.dataset.groupId;
+        const optId = chip.dataset.optId || chip.dataset.mgId;
 
+        const act = activities.find((a) => a.id === actId);
         const comp = completionMap.get(actId);
-        if (!comp) return;
+        if (!act || !comp) return;
 
-        const currentIds = Array.isArray(comp.muscleGroupIds) ? [...comp.muscleGroupIds] : [];
-        const index = currentIds.indexOf(mgId);
+        const group = (act.groups || []).find((g) => g.id === groupId);
+        if (!group) return;
 
-        if (index > -1) {
-          currentIds.splice(index, 1);
-          chip.classList.remove('selected');
-          chip.setAttribute('aria-pressed', 'false');
+        let currentIds = Array.isArray(comp.optionIds) ? [...comp.optionIds] : [];
+        const isAlreadySelected = currentIds.includes(optId);
+
+        if (group.multiple) {
+          // multiple = true: toggle selection
+          if (isAlreadySelected) {
+            currentIds = currentIds.filter((id) => id !== optId);
+            chip.classList.remove('selected');
+            chip.setAttribute('aria-pressed', 'false');
+          } else {
+            currentIds.push(optId);
+            chip.classList.add('selected');
+            chip.setAttribute('aria-pressed', 'true');
+          }
         } else {
-          currentIds.push(mgId);
-          chip.classList.add('selected');
-          chip.setAttribute('aria-pressed', 'true');
+          // multiple = false: allows only one selected option in this group
+          const groupOptIds = new Set((group.options || []).map((o) => o.id));
+          if (isAlreadySelected) {
+            currentIds = currentIds.filter((id) => id !== optId);
+            chip.classList.remove('selected');
+            chip.setAttribute('aria-pressed', 'false');
+          } else {
+            currentIds = currentIds.filter((id) => !groupOptIds.has(id));
+            currentIds.push(optId);
+
+            const card = chip.closest('.activity-group-card');
+            if (card) {
+              card.querySelectorAll('.group-chip, .muscle-chip').forEach((c) => {
+                c.classList.remove('selected');
+                c.setAttribute('aria-pressed', 'false');
+              });
+            }
+            chip.classList.add('selected');
+            chip.setAttribute('aria-pressed', 'true');
+          }
         }
 
-        comp.muscleGroupIds = currentIds;
+        comp.optionIds = currentIds;
+
+        const subtitleEl = root.querySelector(`#subtitle-${actId}`);
         if (subtitleEl) {
-          subtitleEl.textContent = formatSubtitle(currentIds);
+          subtitleEl.textContent = formatSubtitle(act, currentIds);
         }
 
         try {
-          await setCompletionMuscleGroups(dateStr, actId, currentIds);
+          await setCompletionOptionIds(dateStr, actId, currentIds);
         } catch (err) {
-          console.error('Erro ao salvar grupos musculares:', err);
+          console.error('Erro ao salvar opções selecionadas:', err);
         }
       });
     });

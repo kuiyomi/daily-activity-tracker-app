@@ -280,11 +280,11 @@ function showActivities() {
     onBack: () => showCalendar(),
     onFormOpen: () => {
       isEditFormOpen = true;
-      setTabBarVisible(false);  // Hide tab bar on the activity form
+      setTabBarVisible(true);   // Tab bar remains visible on pushed activity form
     },
     onFormClose: () => {
       isEditFormOpen = false;
-      setTabBarVisible(true);   // Restore tab bar when exiting form
+      setTabBarVisible(true);
     },
   }), 'fade');
 }
@@ -294,7 +294,16 @@ function showSummary() {
 }
 
 function showSettings() {
-  return navigate('ajustes', (layer) => mountSettingsView(layer), 'fade');
+  return navigate('ajustes', (layer) => mountSettingsView(layer, {
+    onFormOpen: () => {
+      isEditFormOpen = true;
+      setTabBarVisible(false);
+    },
+    onFormClose: () => {
+      isEditFormOpen = false;
+      setTabBarVisible(true);
+    },
+  }), 'fade');
 }
 
 // ── Tab click handling ───────────────────────────────────────────────────────

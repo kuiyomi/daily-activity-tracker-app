@@ -20,6 +20,26 @@ export const EMOJI_TO_ICON_KEY = {
   '⭐️': 'target',
 };
 
+export const DEFAULT_MUSCLE_GROUPS = [
+  'Superiores',
+  'Inferiores',
+  'Peito',
+  'Costas',
+  'Pernas',
+  'Ombros',
+  'Bíceps',
+  'Tríceps',
+  'Cardio',
+];
+
+export function muscleGroupSlug(name) {
+  return String(name || '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]+/g, '');
+}
+
 /**
  * Validates and sanitizes activity input data.
  * Maps legacy emojis to Phosphor icon keys while preserving unknown icons for backward compatibility.
@@ -28,7 +48,7 @@ export const EMOJI_TO_ICON_KEY = {
  * @param {string} input.name
  * @param {string} [input.icon]
  * @param {string} [input.color]
- * @param {boolean} [input.usesMuscleGroups]
+ * @param {Array<{ id: string, name: string, multiple: boolean, archived: boolean, options: Array<{ id: string, name: string, archived: boolean }> }>} [input.groups]
  * @param {number} [input.createdAt]
  * @returns {{ valid: boolean, errors: string[], sanitized: object | null }}
  */
@@ -49,7 +69,21 @@ export function validateActivity(input = {}) {
     ? input.color.trim()
     : '#007aff';
 
-  const usesMuscleGroups = Boolean(input.usesMuscleGroups);
+  const groups = Array.isArray(input.groups)
+    ? input.groups.map((g, gIdx) => ({
+        id: typeof g.id === 'string' && g.id.trim() ? g.id.trim() : `grp_${Date.now()}_${gIdx}`,
+        name: typeof g.name === 'string' ? g.name.trim() : '',
+        multiple: Boolean(g.multiple),
+        archived: Boolean(g.archived),
+        options: Array.isArray(g.options)
+          ? g.options.map((opt, oIdx) => ({
+              id: typeof opt.id === 'string' && opt.id.trim() ? opt.id.trim() : `opt_${Date.now()}_${oIdx}`,
+              name: typeof opt.name === 'string' ? opt.name.trim() : '',
+              archived: Boolean(opt.archived),
+            }))
+          : [],
+      }))
+    : [];
 
   if (errors.length > 0) {
     return { valid: false, errors, sanitized: null };
@@ -66,7 +100,7 @@ export function validateActivity(input = {}) {
       name,
       icon,
       color,
-      usesMuscleGroups,
+      groups,
       createdAt,
     },
   };
@@ -82,7 +116,8 @@ export function generateActivityId() {
 }
 
 /**
- * Creates the default "Academia" seed activity with Phosphor icon key "barbell".
+ * Creates the default "Academia" seed activity with Phosphor icon key "barbell",
+ * blue color, and embedded "Grupos musculares" group.
  * @returns {object}
  */
 export function createDefaultActivity() {
@@ -91,7 +126,19 @@ export function createDefaultActivity() {
     name: 'Academia',
     icon: 'barbell',
     color: '#007aff',
-    usesMuscleGroups: true,
+    groups: [
+      {
+        id: 'grp_grupos_musculares',
+        name: 'Grupos musculares',
+        multiple: true,
+        archived: false,
+        options: DEFAULT_MUSCLE_GROUPS.map((name) => ({
+          id: `opt_${muscleGroupSlug(name)}`,
+          name,
+          archived: false,
+        })),
+      },
+    ],
     createdAt: 1700000000000,
   };
 }

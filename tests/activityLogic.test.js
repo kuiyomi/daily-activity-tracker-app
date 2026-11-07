@@ -56,13 +56,27 @@ describe('validateActivity()', () => {
     name: '  Caminhada ',
     icon: 'person-simple-walk',
     color: '#34c759',
-    usesMuscleGroups: false,
+    groups: [
+      {
+        id: 'grp_1',
+        name: 'Intensidade',
+        multiple: false,
+        archived: false,
+        options: [
+          { id: 'opt_1', name: 'Leve', archived: false },
+          { id: 'opt_2', name: 'Moderada', archived: false },
+        ],
+      },
+    ],
   });
   assert(valid.valid, 'valid activity is accepted');
   assertEqual(valid.sanitized.name, 'Caminhada', 'name is trimmed');
   assertEqual(valid.sanitized.icon, 'person-simple-walk', 'icon key is preserved');
   assertEqual(valid.sanitized.color, '#34c759', 'color is preserved');
-  assertEqual(valid.sanitized.usesMuscleGroups, false, 'usesMuscleGroups boolean');
+  assertEqual(valid.sanitized.groups.length, 1, 'groups array preserved');
+  assertEqual(valid.sanitized.groups[0].name, 'Intensidade', 'group name preserved');
+  assertEqual(valid.sanitized.groups[0].multiple, false, 'group multiple preserved');
+  assertEqual(valid.sanitized.groups[0].options.length, 2, 'group options preserved');
   assert(typeof valid.sanitized.id === 'string' && valid.sanitized.id.startsWith('act_'), 'id is generated');
 
   const emptyName = validateActivity({ name: '   ' });
@@ -73,7 +87,7 @@ describe('validateActivity()', () => {
   assert(defaults.valid, 'missing optional fields still valid');
   assertEqual(defaults.sanitized.icon, 'barbell', 'defaults icon to barbell');
   assertEqual(defaults.sanitized.color, '#007aff', 'defaults color to fallback');
-  assertEqual(defaults.sanitized.usesMuscleGroups, false, 'defaults usesMuscleGroups to false');
+  assertEqual(defaults.sanitized.groups, [], 'defaults groups to empty array');
 });
 
 describe('backward compatibility and icon mapping', () => {
@@ -94,7 +108,14 @@ describe('createDefaultActivity()', () => {
   const def = createDefaultActivity();
   assertEqual(def.name, 'Academia', 'default name is Academia');
   assertEqual(def.icon, 'barbell', 'default icon is barbell key');
-  assertEqual(def.usesMuscleGroups, true, 'usesMuscleGroups is true for Academia');
+  assertEqual(def.color, '#007aff', 'default color is blue');
+  assert(Array.isArray(def.groups), 'groups is array');
+  assertEqual(def.groups.length, 1, 'has one group');
+  assertEqual(def.groups[0].name, 'Grupos musculares', 'group name is "Grupos musculares"');
+  assertEqual(def.groups[0].multiple, true, 'group multiple is true');
+  assertEqual(def.groups[0].archived, false, 'group archived is false');
+  assertEqual(def.groups[0].options.length, 9, 'has 9 default muscle group options');
+  assertEqual(def.groups[0].options[0].name, 'Superiores', 'first option is Superiores');
 });
 
 describe('generateActivityId()', () => {

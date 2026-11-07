@@ -1,37 +1,21 @@
 /**
  * storage.js – IndexedDB storage layer for Dad's Calendar / Agenda.
  * Pure async API, completely decoupled from the UI.
- * Schema v2: activities, completions, muscleGroups, dayEntries.
+ * Schema v3: activities, completions, dayEntries.
  */
 
 import {
   validateActivity,
   createDefaultActivity,
   extractCompletedDates,
+  DEFAULT_MUSCLE_GROUPS,
+  muscleGroupSlug,
 } from '../logic/activityLogic.js';
 
 export const DB_NAME = 'DadsCalendarDB';
-export const DB_VERSION = 2;
+export const DB_VERSION = 3;
 
-export const DEFAULT_MUSCLE_GROUPS = [
-  'Superiores',
-  'Inferiores',
-  'Peito',
-  'Costas',
-  'Pernas',
-  'Ombros',
-  'Bíceps',
-  'Tríceps',
-  'Cardio',
-];
-
-export function muscleGroupSlug(name) {
-  return String(name || '')
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .replace(/[^a-z0-9]+/g, '');
-}
+export { DEFAULT_MUSCLE_GROUPS, muscleGroupSlug };
 
 let dbPromise = null;
 
@@ -66,36 +50,27 @@ export function getDB() {
 
     request.onupgradeneeded = (event) => {
       const db = event.target.result;
-      const oldVersion = event.oldVersion || 0;
 
-      // Existing object stores are never deleted, so v1 data survives the bump.
-      if (!db.objectStoreNames.contains('activities')) {
-        db.createObjectStore('activities', { keyPath: 'id' });
+      // Drop all old stores and recreate them with the new schema
+      for (const name of Array.from(db.objectStoreNames)) {
+        db.deleteObjectStore(name);
       }
 
-      if (!db.objectStoreNames.contains('completions')) {
-        const compStore = db.createObjectStore('completions', { keyPath: 'id' });
-        compStore.createIndex('date', 'date', { unique: false });
-        compStore.createIndex('activityId', 'activityId', { unique: false });
-      }
+      const actStore = db.createObjectStore('activities', { keyPath: 'id' });
+      const compStore = db.createObjectStore('completions', { keyPath: 'id' });
+      compStore.createIndex('date', 'date', { unique: false });
+      compStore.createIndex('activityId', 'activityId', { unique: false });
+      db.createObjectStore('dayEntries', { keyPath: 'date' });
 
-      if (oldVersion < 2) {
-        if (!db.objectStoreNames.contains('muscleGroups')) {
-          db.createObjectStore('muscleGroups', { keyPath: 'id' });
-        }
-        if (!db.objectStoreNames.contains('dayEntries')) {
-          db.createObjectStore('dayEntries', { keyPath: 'date' });
-        }
-      }
+      // Seed defaults
+      const defaultAct = createDefaultActivity();
+      actStore.put(defaultAct);
     };
 
     request.onsuccess = async (event) => {
       const db = event.target.result;
       try {
-        await Promise.all([
-          seedDefaultActivityIfNeeded(db),
-          seedDefaultMuscleGroupsIfNeeded(db),
-        ]);
+        await seedDefaultActivityIfNeeded(db);
         resolve(db);
       } catch (err) {
         reject(err);
@@ -125,37 +100,6 @@ function seedDefaultActivityIfNeeded(db) {
       if (countReq.result === 0) {
         const defaultAct = createDefaultActivity();
         store.put(defaultAct);
-      }
-    };
-
-    tx.oncomplete = () => resolve();
-    tx.onerror = (event) => reject(event.target.error);
-  });
-}
-
-/**
- * Seeds default muscle groups if none exist.
- * @param {IDBDatabase} db
- * @returns {Promise<void>}
- */
-function seedDefaultMuscleGroupsIfNeeded(db) {
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction('muscleGroups', 'readwrite');
-    const store = tx.objectStore('muscleGroups');
-    const countReq = store.count();
-
-    countReq.onsuccess = () => {
-      if (countReq.result === 0) {
-        DEFAULT_MUSCLE_GROUPS.forEach((name, index) => {
-          const slug = muscleGroupSlug(name);
-          store.put({
-            id: `mg_${slug}`,
-            name,
-            archived: false,
-            order: index,
-            createdAt: Date.now() + index,
-          });
-        });
       }
     };
 
@@ -254,119 +198,6 @@ export async function deleteActivity(id) {
         cursor.delete();
         cursor.continue();
       }
-    };
-
-    tx.oncomplete = () => resolve();
-    tx.onerror = (event) => reject(event.target.error);
-  });
-}
-
-/* ─────────────────────────────────────────────────────────────
-   MUSCLE GROUPS (RF05)
-   ───────────────────────────────────────────────────────────── */
-
-/**
- * Retrieves muscle groups.
- * @param {boolean} [includeArchived=false]
- * @returns {Promise<Array<{ id: string, name: string, archived: boolean, order?: number, createdAt?: number }>>}
- */
-export async function getMuscleGroups(includeArchived = false) {
-  const db = await getDB();
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction('muscleGroups', 'readonly');
-    const store = tx.objectStore('muscleGroups');
-    const request = store.getAll();
-
-    request.onsuccess = () => {
-      let list = request.result || [];
-      if (!includeArchived) {
-        list = list.filter((g) => !g.archived);
-      }
-      list.sort((a, b) => {
-        if (a.order !== undefined && b.order !== undefined) {
-          return a.order - b.order;
-        }
-        return (a.createdAt || 0) - (b.createdAt || 0);
-      });
-      resolve(list);
-    };
-
-    request.onerror = (event) => reject(event.target.error);
-  });
-}
-
-/**
- * Saves a muscle group (create or update name/order).
- * @param {{ id?: string, name: string, archived?: boolean, order?: number }} group
- * @returns {Promise<{ id: string, name: string, archived: boolean }>}
- */
-export async function saveMuscleGroup(group) {
-  if (!group || !group.name || !group.name.trim()) {
-    throw new Error('Nome do grupo muscular não pode ser vazio.');
-  }
-
-  const db = await getDB();
-  const trimmedName = group.name.trim();
-
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction('muscleGroups', 'readwrite');
-    const store = tx.objectStore('muscleGroups');
-
-    const putRecord = (record) => {
-      const request = store.put(record);
-      request.onsuccess = () => resolve(record);
-    };
-
-    if (group.id) {
-      const getReq = store.get(group.id);
-      getReq.onsuccess = () => {
-        const existing = getReq.result;
-        putRecord({
-          id: group.id,
-          name: trimmedName,
-          archived:
-            group.archived !== undefined
-              ? Boolean(group.archived)
-              : Boolean(existing?.archived),
-          order:
-            typeof group.order === 'number'
-              ? group.order
-              : existing?.order ?? Date.now(),
-          createdAt: existing?.createdAt || group.createdAt || Date.now(),
-        });
-      };
-    } else {
-      putRecord({
-        id: `mg_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
-        name: trimmedName,
-        archived: Boolean(group.archived),
-        order: typeof group.order === 'number' ? group.order : Date.now(),
-        createdAt: group.createdAt || Date.now(),
-      });
-    }
-
-    tx.onerror = (event) => reject(event.target.error);
-  });
-}
-
-/**
- * Marks a muscle group as archived so it disappears from new selections
- * while preserving its presence in history.
- * @param {string} id
- * @returns {Promise<void>}
- */
-export async function archiveMuscleGroup(id) {
-  const db = await getDB();
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction('muscleGroups', 'readwrite');
-    const store = tx.objectStore('muscleGroups');
-    const getReq = store.get(id);
-
-    getReq.onsuccess = () => {
-      const record = getReq.result;
-      if (!record) return resolve();
-      record.archived = true;
-      store.put(record);
     };
 
     tx.oncomplete = () => resolve();
@@ -486,7 +317,7 @@ export async function setDayNotes(dateStr, notes) {
 /**
  * Retrieves completion records with full details for a given date.
  * @param {string} dateStr – "YYYY-MM-DD"
- * @returns {Promise<Array<{ id: string, date: string, activityId: string, completedAt?: number, muscleGroupIds?: string[] }>>}
+ * @returns {Promise<Array<{ id: string, date: string, activityId: string, completedAt?: number, optionIds?: string[] }>>}
  */
 export async function getCompletionsWithDetailsForDate(dateStr) {
   const db = await getDB();
@@ -496,7 +327,17 @@ export async function getCompletionsWithDetailsForDate(dateStr) {
     const index = store.index('date');
     const request = index.getAll(IDBKeyRange.only(dateStr));
 
-    request.onsuccess = () => resolve(request.result || []);
+    request.onsuccess = () => {
+      const records = (request.result || []).map((r) => ({
+        ...r,
+        optionIds: Array.isArray(r.optionIds)
+          ? r.optionIds
+          : Array.isArray(r.muscleGroupIds)
+          ? r.muscleGroupIds
+          : [],
+      }));
+      resolve(records);
+    };
     request.onerror = (event) => reject(event.target.error);
   });
 }
@@ -518,10 +359,10 @@ export async function getCompletionsForDate(dateStr) {
  * @param {string} dateStr – "YYYY-MM-DD"
  * @param {string} activityId
  * @param {boolean} completed
- * @param {string[]} [muscleGroupIds=[]]
+ * @param {string[]} [optionIds=[]]
  * @returns {Promise<void>}
  */
-export async function setCompletion(dateStr, activityId, completed, muscleGroupIds = []) {
+export async function setCompletion(dateStr, activityId, completed, optionIds = []) {
   const db = await getDB();
   const id = `${dateStr}:${activityId}`;
 
@@ -535,7 +376,7 @@ export async function setCompletion(dateStr, activityId, completed, muscleGroupI
         date: dateStr,
         activityId,
         completedAt: Date.now(),
-        muscleGroupIds: Array.isArray(muscleGroupIds) ? muscleGroupIds : [],
+        optionIds: Array.isArray(optionIds) ? optionIds : [],
       });
     } else {
       store.delete(id);
@@ -547,13 +388,13 @@ export async function setCompletion(dateStr, activityId, completed, muscleGroupI
 }
 
 /**
- * Updates selected muscleGroupIds for an activity completion on a date.
+ * Updates selected optionIds for an activity completion on a date.
  * @param {string} dateStr – "YYYY-MM-DD"
  * @param {string} activityId
- * @param {string[]} muscleGroupIds
+ * @param {string[]} optionIds
  * @returns {Promise<void>}
  */
-export async function setCompletionMuscleGroups(dateStr, activityId, muscleGroupIds = []) {
+export async function setCompletionOptionIds(dateStr, activityId, optionIds = []) {
   const db = await getDB();
   const id = `${dateStr}:${activityId}`;
 
@@ -565,7 +406,7 @@ export async function setCompletionMuscleGroups(dateStr, activityId, muscleGroup
     getReq.onsuccess = () => {
       const record = getReq.result;
       if (!record) return;
-      record.muscleGroupIds = Array.isArray(muscleGroupIds) ? muscleGroupIds : [];
+      record.optionIds = Array.isArray(optionIds) ? optionIds : [];
       store.put(record);
     };
 
@@ -574,14 +415,16 @@ export async function setCompletionMuscleGroups(dateStr, activityId, muscleGroup
   });
 }
 
+export const setCompletionMuscleGroups = setCompletionOptionIds;
+
 /**
  * Retrieves all completion records within the [startDate, endDate] range using
  * a single IndexedDB range query on the 'date' index.
- * Returns array of completion records ({ id, date, activityId, completedAt, muscleGroupIds }).
+ * Returns array of completion records ({ id, date, activityId, completedAt, optionIds }).
  *
  * @param {string} [startDateStr] – "YYYY-MM-DD"
  * @param {string} [endDateStr] – "YYYY-MM-DD"
- * @returns {Promise<Array<{ id: string, date: string, activityId: string, completedAt?: number, muscleGroupIds?: string[] }>>}
+ * @returns {Promise<Array<{ id: string, date: string, activityId: string, completedAt?: number, optionIds?: string[] }>>}
  */
 export async function getCompletionsForDateRange(startDateStr, endDateStr) {
   const db = await getDB();
@@ -598,7 +441,15 @@ export async function getCompletionsForDateRange(startDateStr, endDateStr) {
     }
 
     request.onsuccess = () => {
-      resolve(request.result || []);
+      const records = (request.result || []).map((r) => ({
+        ...r,
+        optionIds: Array.isArray(r.optionIds)
+          ? r.optionIds
+          : Array.isArray(r.muscleGroupIds)
+          ? r.muscleGroupIds
+          : [],
+      }));
+      resolve(records);
     };
 
     request.onerror = (event) => reject(event.target.error);

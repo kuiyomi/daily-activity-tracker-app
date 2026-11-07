@@ -45,8 +45,9 @@ Installed on iPhone via Add to Home Screen, hosted on GitHub Pages.
   screen, console.error, and show a friendly message. Never a blank screen.
 
 ## Data and releases
-- Never rename the database. A schema change bumps the IndexedDB version with an
-  onupgradeneeded migration that preserves data, plus a test that old data survives.
+- Data: the app is in testing and losing local data is acceptable. A schema change bumps
+  the IndexedDB version and may reset data in onupgradeneeded (never rename the database).
+  Restore data-preserving migrations when I say real use has started.
 - Every file in the service worker precache list must exist; update the list when adding files.
 - Deployable changes end with a version bump: edit src/version.js, then
   `npm run version:sync` (patch for fixes, minor for features).
