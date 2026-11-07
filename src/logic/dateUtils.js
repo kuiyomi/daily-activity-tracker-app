@@ -144,3 +144,92 @@ export function weekdayLabels() {
     return label.charAt(0).toUpperCase() + label.slice(1);
   });
 }
+
+/**
+ * Returns the 7 Date objects (Sunday through Saturday) for the week containing referenceDate.
+ * @param {Date | string} referenceDate
+ * @returns {Date[]}
+ */
+export function getWeekDays(referenceDate) {
+  const d = typeof referenceDate === 'string' ? parseDateString(referenceDate) : new Date(referenceDate);
+  const local = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  const sunday = new Date(local.getFullYear(), local.getMonth(), local.getDate() - local.getDay());
+  return Array.from({ length: 7 }, (_, i) => new Date(sunday.getFullYear(), sunday.getMonth(), sunday.getDate() + i));
+}
+
+/**
+ * Returns week range info containing start Date, end Date, and ISO date strings.
+ * @param {Date | string} referenceDate
+ * @returns {{ start: Date, end: Date, startDateStr: string, endDateStr: string, days: Date[] }}
+ */
+export function getWeekRange(referenceDate) {
+  const days = getWeekDays(referenceDate);
+  const start = days[0];
+  const end = days[6];
+  return {
+    start,
+    end,
+    startDateStr: toDateString(start),
+    endDateStr: toDateString(end),
+    days,
+  };
+}
+
+/**
+ * Returns a new Date 7 days after the given date.
+ * @param {Date | string} referenceDate
+ * @returns {Date}
+ */
+export function nextWeek(referenceDate) {
+  const d = typeof referenceDate === 'string' ? parseDateString(referenceDate) : new Date(referenceDate);
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate() + 7);
+}
+
+/**
+ * Returns a new Date 7 days before the given date.
+ * @param {Date | string} referenceDate
+ * @returns {Date}
+ */
+export function prevWeek(referenceDate) {
+  const d = typeof referenceDate === 'string' ? parseDateString(referenceDate) : new Date(referenceDate);
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate() - 7);
+}
+
+/**
+ * Checks whether two dates belong to the same week (Sunday-Saturday).
+ * @param {Date | string} dateA
+ * @param {Date | string} dateB
+ * @returns {boolean}
+ */
+export function isSameWeek(dateA, dateB) {
+  const daysA = getWeekDays(dateA);
+  const daysB = getWeekDays(dateB);
+  return toDateString(daysA[0]) === toDateString(daysB[0]);
+}
+
+/**
+ * Formats a week heading in pt-BR, e.g. "1 – 7 nov. 2026",
+ * "27 set. – 3 out. 2026", or "27 dez. 2026 – 2 jan. 2027".
+ * Uses en-dash (" \u2013 ").
+ * @param {Date | string} startDate
+ * @param {Date | string} endDate
+ * @returns {string}
+ */
+export function formatWeekHeading(startDate, endDate) {
+  const start = typeof startDate === 'string' ? parseDateString(startDate) : new Date(startDate);
+  const end = typeof endDate === 'string' ? parseDateString(endDate) : new Date(endDate);
+  const fmtMonth = new Intl.DateTimeFormat('pt-BR', { month: 'short' });
+  const startMonth = fmtMonth.format(start);
+  const endMonth = fmtMonth.format(end);
+  const startYear = start.getFullYear();
+  const endYear = end.getFullYear();
+
+  if (startYear === endYear && start.getMonth() === end.getMonth()) {
+    return `${start.getDate()} \u2013 ${end.getDate()} ${startMonth} ${startYear}`;
+  }
+  if (startYear === endYear) {
+    return `${start.getDate()} ${startMonth} \u2013 ${end.getDate()} ${endMonth} ${startYear}`;
+  }
+  return `${start.getDate()} ${startMonth} ${startYear} \u2013 ${end.getDate()} ${endMonth} ${endYear}`;
+}
+

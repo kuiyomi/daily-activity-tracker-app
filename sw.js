@@ -7,7 +7,7 @@
  * All URLs use relative paths to support GitHub Pages subpath deployment (/repo-name/).
  */
 
-const SW_VERSION = '0.8.0';
+const SW_VERSION = '0.10.0';
 
 importScripts('./src/version.js');
 

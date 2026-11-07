@@ -20,6 +20,70 @@ import { ICONS, renderIconGlyph } from './icons.js';
 import '../version.js';
 
 /**
+ * Formats a subtitle string containing selected option names for an activity.
+ *
+ * @param {object} act
+ * @param {string[]} optionIds
+ * @returns {string}
+ */
+export function formatActivitySubtitle(act, optionIds = []) {
+  if (!act || !Array.isArray(act.groups) || !Array.isArray(optionIds) || optionIds.length === 0) {
+    return '';
+  }
+  const optSet = new Set(optionIds);
+  const names = [];
+  for (const group of act.groups) {
+    if (!Array.isArray(group.options)) continue;
+    for (const opt of group.options) {
+      if (optSet.has(opt.id)) {
+        names.push(opt.name);
+      }
+    }
+  }
+  return names.join(', ');
+}
+
+/**
+ * Renders the HTML markup for an activity checklist item row.
+ *
+ * @param {object} act
+ * @param {boolean} isDone
+ * @param {string} subtitleText
+ * @param {{ showDetailsButton?: boolean }} [options]
+ * @returns {string}
+ */
+export function renderActivityCheckRowHtml(act, isDone, subtitleText = '', options = {}) {
+  const showDetailsButton = Boolean(options.showDetailsButton && isDone);
+  const detailsHtml = showDetailsButton
+    ? `<button type="button" class="today-details-btn" data-act-id="${act.id}" aria-label="Detalhes de ${escapeHtml(act.name)}">Detalhes</button>`
+    : '';
+
+  return `
+    <div
+      class="inset-row activity-check-row ${isDone ? 'activity-check-row--done' : ''}"
+      data-id="${act.id}"
+      role="checkbox"
+      aria-checked="${isDone}"
+      tabindex="0"
+    >
+      <div class="activity-checkbox-circle" aria-hidden="true">
+        <svg class="check-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="20 6 9 17 4 12"></polyline>
+        </svg>
+      </div>
+      <div class="activity-icon-badge" style="background-color: ${act.color};">
+        ${renderIconGlyph(act.icon)}
+      </div>
+      <div class="activity-row-label">
+        <span class="activity-name-text">${escapeHtml(act.name)}</span>
+        <span class="activity-subtitle-text" id="subtitle-${act.id}">${escapeHtml(subtitleText)}</span>
+      </div>
+      ${detailsHtml}
+    </div>
+  `;
+}
+
+/**
  * Mounts the day-detail screen into `root`.
  *
  * @param {HTMLElement} root
@@ -166,23 +230,6 @@ export async function mountDayDetailView(root, dateStr, { onBack, onManageActivi
     // Completions map: activityId -> completion object
     const completionMap = new Map(completionsList.map((c) => [c.activityId, c]));
 
-    function formatSubtitle(act, optionIds = []) {
-      if (!act || !Array.isArray(act.groups) || !Array.isArray(optionIds) || optionIds.length === 0) {
-        return '';
-      }
-      const optSet = new Set(optionIds);
-      const names = [];
-      for (const group of act.groups) {
-        if (!Array.isArray(group.options)) continue;
-        for (const opt of group.options) {
-          if (optSet.has(opt.id)) {
-            names.push(opt.name);
-          }
-        }
-      }
-      return names.join(', ');
-    }
-
     if (activities.length === 0) {
       listEl.innerHTML = `
         <div class="inset-group">
@@ -201,7 +248,7 @@ export async function mountDayDetailView(root, dateStr, { onBack, onManageActivi
             const comp = completionMap.get(act.id);
             const isDone = Boolean(comp);
             const selectedOptionIds = comp?.optionIds || [];
-            const subtitleText = formatSubtitle(act, selectedOptionIds);
+            const subtitleText = formatActivitySubtitle(act, selectedOptionIds);
 
             // Non-archived groups for this activity
             const nonArchivedGroups = Array.isArray(act.groups)
@@ -210,26 +257,7 @@ export async function mountDayDetailView(root, dateStr, { onBack, onManageActivi
 
             return `
               <div class="activity-item-wrapper" data-act-id="${act.id}">
-                <div
-                  class="inset-row activity-check-row ${isDone ? 'activity-check-row--done' : ''}"
-                  data-id="${act.id}"
-                  role="checkbox"
-                  aria-checked="${isDone}"
-                  tabindex="0"
-                >
-                  <div class="activity-checkbox-circle" aria-hidden="true">
-                    <svg class="check-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
-                      <polyline points="20 6 9 17 4 12"></polyline>
-                    </svg>
-                  </div>
-                  <div class="activity-icon-badge" style="background-color: ${act.color};">
-                    ${renderIconGlyph(act.icon)}
-                  </div>
-                  <div class="activity-row-label">
-                    <span class="activity-name-text">${escapeHtml(act.name)}</span>
-                    <span class="activity-subtitle-text" id="subtitle-${act.id}">${escapeHtml(subtitleText)}</span>
-                  </div>
-                </div>
+                ${renderActivityCheckRowHtml(act, isDone, subtitleText)}
 
                 ${
                   nonArchivedGroups.length > 0
@@ -415,7 +443,7 @@ export async function mountDayDetailView(root, dateStr, { onBack, onManageActivi
 
         const subtitleEl = root.querySelector(`#subtitle-${actId}`);
         if (subtitleEl) {
-          subtitleEl.textContent = formatSubtitle(act, currentIds);
+          subtitleEl.textContent = formatActivitySubtitle(act, currentIds);
         }
 
         try {

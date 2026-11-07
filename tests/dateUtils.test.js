@@ -17,6 +17,12 @@ import {
   prevMonth,
   formatMonthHeading,
   weekdayLabels,
+  getWeekDays,
+  getWeekRange,
+  nextWeek,
+  prevWeek,
+  isSameWeek,
+  formatWeekHeading,
 } from '../src/logic/dateUtils.js';
 
 // ── Tiny test harness ──────────────────────────────────────────────────────
@@ -131,6 +137,65 @@ describe('weekdayLabels()', () => {
   // Last must be Saturday
   assert(labels[6].toLowerCase().startsWith('sáb') || labels[6].toLowerCase().startsWith('sab'),
     `last label starts with "sáb" (got "${labels[6]}")`);
+});
+
+describe('getWeekDays() and getWeekRange()', () => {
+  // Within same month: Nov 6, 2026 (Friday)
+  const novWeek = getWeekDays('2026-11-06');
+  assertEqual(novWeek.length, 7, 'week has 7 days');
+  assertEqual(toDateString(novWeek[0]), '2026-11-01', 'Nov 6 week starts on Sunday Nov 1');
+  assertEqual(toDateString(novWeek[6]), '2026-11-07', 'Nov 6 week ends on Saturday Nov 7');
+  assertEqual(novWeek[0].getDay(), 0, 'first day is Sunday (0)');
+  assertEqual(novWeek[6].getDay(), 6, 'last day is Saturday (6)');
+
+  // Crossing month boundary: Sep 30, 2026 (Wednesday)
+  const sepOctWeek = getWeekDays('2026-09-30');
+  assertEqual(toDateString(sepOctWeek[0]), '2026-09-27', 'Sep 30 week starts on Sun Sep 27');
+  assertEqual(toDateString(sepOctWeek[6]), '2026-10-03', 'Sep 30 week ends on Sat Oct 3');
+
+  // Crossing year boundary: Dec 31, 2026 (Thursday)
+  const decJanWeek = getWeekDays('2026-12-31');
+  assertEqual(toDateString(decJanWeek[0]), '2026-12-27', 'Dec 31 week starts on Sun Dec 27 2026');
+  assertEqual(toDateString(decJanWeek[6]), '2027-01-02', 'Dec 31 week ends on Sat Jan 2 2027');
+
+  // Leap year boundary: Feb 28, 2024
+  const leapWeek = getWeekDays('2024-02-28');
+  assertEqual(toDateString(leapWeek[0]), '2024-02-25', 'Leap week starts on Sun Feb 25 2024');
+  assertEqual(toDateString(leapWeek[4]), '2024-02-29', 'Leap week includes Feb 29 2024');
+  assertEqual(toDateString(leapWeek[6]), '2024-03-02', 'Leap week ends on Sat Mar 2 2024');
+
+  // getWeekRange structure
+  const range = getWeekRange('2026-11-06');
+  assertEqual(range.startDateStr, '2026-11-01', 'range startDateStr');
+  assertEqual(range.endDateStr, '2026-11-07', 'range endDateStr');
+});
+
+describe('nextWeek() and prevWeek()', () => {
+  const d = parseDateString('2026-11-01');
+  const next = nextWeek(d);
+  assertEqual(toDateString(next), '2026-11-08', 'next week is Nov 8');
+  const prev = prevWeek(d);
+  assertEqual(toDateString(prev), '2026-10-25', 'prev week crosses month to Oct 25');
+
+  // Crossing year boundary
+  const yearEnd = parseDateString('2026-12-27');
+  const yearNext = nextWeek(yearEnd);
+  assertEqual(toDateString(yearNext), '2027-01-03', 'next week crosses year boundary to 2027-01-03');
+  const yearBack = prevWeek(yearNext);
+  assertEqual(toDateString(yearBack), '2026-12-27', 'prev week crosses back to 2026-12-27');
+});
+
+describe('isSameWeek()', () => {
+  assert(isSameWeek('2026-11-01', '2026-11-06'), 'Sunday and Friday of same week are same week');
+  assert(isSameWeek('2026-11-01', '2026-11-07'), 'Sunday and Saturday of same week are same week');
+  assert(!isSameWeek('2026-11-07', '2026-11-08'), 'Saturday and next Sunday are different weeks');
+  assert(isSameWeek('2026-12-28', '2027-01-01'), 'Days across year boundary in same week match');
+});
+
+describe('formatWeekHeading()', () => {
+  assertEqual(formatWeekHeading('2026-11-01', '2026-11-07'), '1 \u2013 7 nov. 2026', 'same month format');
+  assertEqual(formatWeekHeading('2026-09-27', '2026-10-03'), '27 set. \u2013 3 out. 2026', 'crossing month format');
+  assertEqual(formatWeekHeading('2026-12-27', '2027-01-02'), '27 dez. 2026 \u2013 2 jan. 2027', 'crossing year format');
 });
 
 // ── Summary ────────────────────────────────────────────────────────────────

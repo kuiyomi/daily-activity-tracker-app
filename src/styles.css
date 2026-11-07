@@ -528,6 +528,24 @@ body {
 }
 
 /* ── 7. Calendar View Component ────────────────────────────── */
+.calendar-nav-header {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 10px;
+  padding-bottom: 12px;
+}
+
+.calendar-nav-title-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  width: 100%;
+}
+
+.calendar-segment-wrapper {
+  width: 100%;
+}
+
 .calendar-card {
   padding: 0.75rem 0.5rem 0.25rem 0.5rem;
 }
@@ -738,6 +756,209 @@ body {
 .cal-day--today .cal-day-rain {
   color: var(--ios-cyan);
   right: -4px;
+}
+
+/* ── Calendar View Modes (Month / Week) & Transitions ──────── */
+.cal-view-container {
+  position: relative;
+}
+
+.cal-view--fade-in {
+  opacity: 0;
+}
+.cal-view--fade-in.is-animating {
+  opacity: 1;
+  transition: opacity 200ms ease;
+}
+.cal-view--fade-out {
+  opacity: 1;
+}
+.cal-view--fade-out.is-animating {
+  opacity: 0;
+  transition: opacity 200ms ease;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cal-view--fade-in.is-animating,
+  .cal-view--fade-out.is-animating {
+    transition: none !important;
+  }
+}
+
+/* ── Calendar Week View ────────────────────────────────────── */
+.cal-week-stage {
+  position: relative;
+  overflow: hidden;
+  touch-action: pan-y;
+  margin: 0 -0.5rem -0.25rem -0.5rem;
+}
+
+.cal-week-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.cal-week-stage > .cal-week-list--leaving {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  pointer-events: none;
+}
+
+.cal-week-list--enter-next { transform: translateX(8%); opacity: 0; }
+.cal-week-list--enter-prev { transform: translateX(-8%); opacity: 0; }
+.cal-week-list--leave-next { transform: translateX(0); opacity: 1; }
+.cal-week-list--leave-prev { transform: translateX(0); opacity: 1; }
+.cal-week-list--enter-next.is-animating,
+.cal-week-list--enter-prev.is-animating { transform: translateX(0); opacity: 1; }
+.cal-week-list--leave-next.is-animating { transform: translateX(-8%); opacity: 0; }
+.cal-week-list--leave-prev.is-animating { transform: translateX(8%); opacity: 0; }
+.cal-week-list.is-animating {
+  transition: transform 250ms cubic-bezier(0.32, 0.72, 0, 1), opacity 250ms cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cal-week-list.is-animating {
+    transition: none !important;
+  }
+}
+
+.cal-week-row {
+  min-height: 64px;
+  display: flex;
+  align-items: center;
+  padding: 8px 16px;
+  width: 100%;
+  border: none;
+  background: transparent;
+  color: var(--text-primary);
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+  box-sizing: border-box;
+  position: relative;
+  transition: background-color 150ms ease;
+  touch-action: manipulation;
+}
+
+.cal-week-row:active {
+  background-color: var(--card-pressed);
+}
+
+/* iOS hairline separator between week rows */
+.cal-week-row + .cal-week-row::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 4.5rem;
+  right: 0;
+  height: 0.5px;
+  background-color: var(--separator);
+}
+
+.cal-week-day-col {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  flex-shrink: 0;
+  margin-right: 12px;
+  gap: 2px;
+}
+
+.cal-week-weekday {
+  font-size: 0.72rem;
+  font-weight: 500;
+  color: var(--text-secondary);
+  letter-spacing: 0.02em;
+}
+
+.cal-week-row--today .cal-week-weekday {
+  color: var(--ios-blue);
+  font-weight: 600;
+}
+
+.cal-week-day-num {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1rem;
+  font-weight: 500;
+  color: var(--text-primary);
+  line-height: 1;
+}
+
+.cal-week-day-num--today {
+  background-color: var(--ios-blue);
+  color: #ffffff;
+  font-weight: 600;
+}
+
+.cal-week-content-col {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 4px;
+}
+
+.cal-week-badges {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: nowrap;
+  overflow: hidden;
+}
+
+.activity-icon-badge.activity-icon-badge--sm {
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+  flex-shrink: 0;
+}
+
+.activity-icon-badge.activity-icon-badge--sm svg {
+  width: 14px;
+  height: 14px;
+}
+
+.cal-week-options-text {
+  font-size: 0.8125rem;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1.2;
+}
+
+.cal-week-rain-col {
+  width: 28px;
+  height: 28px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-left: 8px;
+}
+
+.cal-week-rain {
+  color: var(--ios-cyan);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.cal-week-rain svg {
+  width: 18px;
+  height: 18px;
+  display: block;
+  fill: currentColor;
 }
 
 /* ── 8. Day Detail Screen ──────────────────────────────────── */
@@ -1897,4 +2118,47 @@ div.ios-switch input[type="checkbox"]:checked ~ .ios-switch-slider::after {
     transition: none;
   }
 }
+
+/* ── "Hoje" card on calendar screen ────────────────────────── */
+.today-section-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.today-section-title {
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.today-section-caption {
+  font-size: 0.78rem;
+  color: var(--text-secondary);
+  font-weight: 400;
+}
+
+.today-details-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  color: var(--ios-blue);
+  font-size: 0.8125rem;
+  font-weight: 500;
+  cursor: pointer;
+  padding: 4px 6px;
+  margin: -4px -6px;
+  min-height: 44px;
+  line-height: 1;
+  border-radius: 6px;
+  touch-action: manipulation;
+  transition: opacity 150ms ease;
+}
+
+.today-details-btn:active {
+  opacity: 0.4;
+}
+
 
