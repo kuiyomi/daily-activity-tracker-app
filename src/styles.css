@@ -716,11 +716,53 @@ body {
 }
 
 .cal-dot {
-  width: 6px;
-  height: 6px;
+  width: 7px;
+  height: 7px;
   border-radius: 50%;
   flex-shrink: 0;
-  display: inline-block;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+}
+
+.cal-dot--done {
+  border-radius: 50%;
+}
+
+.cal-dot--planned {
+  background-color: transparent !important;
+  border: 1.5px solid;
+  border-radius: 50%;
+  box-sizing: border-box;
+}
+
+.cal-dot--missed {
+  background-color: transparent !important;
+  border-radius: 0;
+}
+
+.cal-dot--missed svg {
+  display: block;
+  width: 7px;
+  height: 7px;
+}
+
+.cal-legend {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 8px 12px 10px;
+  font-size: 11px;
+  color: var(--text-secondary);
+  user-select: none;
+}
+
+.cal-legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
 }
 
 .cal-dots-more {
@@ -928,6 +970,62 @@ body {
   height: 14px;
 }
 
+.activity-icon-badge.activity-icon-badge--planned {
+  background-color: transparent !important;
+  box-sizing: border-box;
+}
+
+.activity-icon-badge.activity-icon-badge--missed {
+  opacity: 0.55;
+  position: relative;
+}
+
+.activity-icon-badge--missed .badge-missed-x {
+  position: absolute;
+  bottom: -3px;
+  right: -3px;
+  width: 11px;
+  height: 11px;
+  background-color: var(--ios-red, #ff3b30);
+  color: #fff;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 9px;
+  font-weight: 700;
+  line-height: 1;
+  border: 1.5px solid var(--card-bg, #fff);
+}
+
+.cal-week-secondary-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.8125rem;
+  line-height: 1.2;
+}
+
+.cal-week-note-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-secondary);
+  flex-shrink: 0;
+}
+
+.cal-week-note-icon svg {
+  width: 14px;
+  height: 14px;
+  fill: currentColor;
+  display: block;
+}
+
+.cal-week-separator {
+  color: var(--text-secondary);
+  font-size: 0.75rem;
+}
+
 .cal-week-options-text {
   font-size: 0.8125rem;
   color: var(--text-secondary);
@@ -1027,6 +1125,36 @@ body {
 .notes-row {
   padding: 0.75rem 1rem;
   min-height: 80px;
+}
+
+.activity-note-row {
+  padding-top: 0.35rem;
+  padding-bottom: 0.75rem;
+  min-height: auto;
+}
+
+.sheet-notes-container {
+  padding: 12px 16px;
+  border-bottom: 0.5px solid var(--separator);
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  text-align: left;
+}
+
+.sheet-note-textarea {
+  width: 100%;
+  border: none;
+  background: transparent;
+  font-family: inherit;
+  font-size: 1rem;
+  color: var(--text-primary);
+  resize: vertical;
+  min-height: 52px;
+  line-height: 1.4;
+  outline: none;
+  padding: 0;
+  -webkit-tap-highlight-color: transparent;
 }
 
 .notes-row-content {
@@ -1315,6 +1443,179 @@ body {
 
 .ios-link-btn:active {
   opacity: 0.4;
+}
+
+/* ── Planning & Day Screen Extensions ───────────────────────── */
+.plan-status-badge {
+  width: 22px;
+  height: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.plan-status-badge svg {
+  width: 20px;
+  height: 20px;
+}
+
+.plan-status--planned {
+  color: var(--text-secondary);
+}
+
+.plan-status--done {
+  color: var(--ios-green);
+}
+
+.plan-status--missed {
+  color: var(--ios-red);
+}
+
+.pending-badge-text {
+  color: var(--ios-orange);
+  font-weight: 600;
+}
+
+.btn-plan-activity {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  min-height: 44px;
+  min-width: 44px;
+  padding: 0 10px;
+  background: rgba(120, 120, 128, 0.12);
+  color: var(--ios-blue);
+  border: none;
+  border-radius: 8px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  touch-action: manipulation;
+  margin-left: auto;
+  transition: opacity 150ms ease, background-color 150ms ease;
+}
+
+.btn-plan-activity:active {
+  opacity: 0.6;
+}
+
+.btn-plan-activity svg {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+}
+
+/* iOS Action Sheet for Planned Activity */
+.ios-sheet-backdrop {
+  position: fixed;
+  inset: 0;
+  background-color: rgba(0, 0, 0, 0.4);
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  padding: 10px max(10px, env(safe-area-inset-right)) max(20px, env(safe-area-inset-bottom)) max(10px, env(safe-area-inset-left));
+  animation: sheet-fade-in 200ms ease;
+}
+
+.ios-action-sheet {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+  max-width: 450px;
+  margin: 0 auto;
+  animation: sheet-slide-up 250ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.ios-action-sheet-group {
+  background-color: var(--card-bg);
+  border-radius: 14px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.ios-action-sheet-header {
+  padding: 14px 16px 10px;
+  text-align: center;
+  border-bottom: 0.5px solid var(--separator);
+}
+
+.ios-action-sheet-title {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin: 0;
+}
+
+.ios-sheet-btn {
+  width: 100%;
+  min-height: 52px;
+  padding: 12px 16px;
+  background: transparent;
+  border: none;
+  border-bottom: 0.5px solid var(--separator);
+  font-size: 1.15rem;
+  font-family: inherit;
+  color: var(--ios-blue);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  touch-action: manipulation;
+  transition: background-color 150ms ease;
+}
+
+.ios-sheet-btn:last-child {
+  border-bottom: none;
+}
+
+.ios-sheet-btn:active {
+  background-color: rgba(120, 120, 128, 0.15);
+}
+
+.ios-sheet-btn--done {
+  color: var(--ios-green);
+  font-weight: 600;
+}
+
+.ios-sheet-btn--missed {
+  color: var(--text-primary);
+}
+
+.ios-sheet-btn--neutral {
+  color: var(--ios-blue);
+}
+
+.ios-sheet-btn--destructive {
+  color: var(--ios-red);
+}
+
+.ios-sheet-btn--cancel {
+  font-weight: 600;
+  color: var(--ios-blue);
+}
+
+@keyframes sheet-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes sheet-slide-up {
+  from { transform: translateY(100%); }
+  to { transform: translateY(0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ios-sheet-backdrop,
+  .ios-action-sheet {
+    animation: none;
+  }
 }
 
 /* ── 9. Activities Screen & Form ───────────────────────────── */
@@ -2159,6 +2460,59 @@ div.ios-switch input[type="checkbox"]:checked ~ .ios-switch-slider::after {
 
 .today-details-btn:active {
   opacity: 0.4;
+}
+
+.today-subhead {
+  padding: 12px 16px 4px;
+  font-size: 13px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: -0.08px;
+  color: var(--text-secondary);
+}
+
+.today-inline-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
+.btn-inline-status {
+  min-height: 32px;
+  min-width: 44px;
+  padding: 4px 10px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  border: none;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: background-color 0.15s ease, color 0.15s ease;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.btn-inline-status--done {
+  background-color: rgba(52, 199, 89, 0.12);
+  color: var(--ios-green);
+}
+
+.btn-inline-status--done.is-active {
+  background-color: var(--ios-green);
+  color: #ffffff;
+}
+
+.btn-inline-status--missed {
+  background-color: rgba(255, 59, 48, 0.12);
+  color: var(--ios-red);
+}
+
+.btn-inline-status--missed.is-active {
+  background-color: var(--ios-red);
+  color: #ffffff;
 }
 
 

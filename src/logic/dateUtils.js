@@ -13,6 +13,36 @@ export function todayString() {
 }
 
 /**
+ * Checks if a date string is in the future relative to a reference date.
+ * @param {string} dateStr – "YYYY-MM-DD"
+ * @param {string} [todayStr] – "YYYY-MM-DD" (defaults to todayString())
+ * @returns {boolean}
+ */
+export function isFutureDate(dateStr, todayStr = todayString()) {
+  return typeof dateStr === 'string' && typeof todayStr === 'string' && dateStr > todayStr;
+}
+
+/**
+ * Checks if a date string is in the past relative to a reference date.
+ * @param {string} dateStr – "YYYY-MM-DD"
+ * @param {string} [todayStr] – "YYYY-MM-DD" (defaults to todayString())
+ * @returns {boolean}
+ */
+export function isPastDate(dateStr, todayStr = todayString()) {
+  return typeof dateStr === 'string' && typeof todayStr === 'string' && dateStr < todayStr;
+}
+
+/**
+ * Checks if a date string is today relative to a reference date.
+ * @param {string} dateStr – "YYYY-MM-DD"
+ * @param {string} [todayStr] – "YYYY-MM-DD" (defaults to todayString())
+ * @returns {boolean}
+ */
+export function isTodayDate(dateStr, todayStr = todayString()) {
+  return typeof dateStr === 'string' && typeof todayStr === 'string' && dateStr === todayStr;
+}
+
+/**
  * Converts a Date object to a local YYYY-MM-DD string.
  * @param {Date} date
  * @returns {string}

@@ -3,6 +3,8 @@
  * No DOM, no storage side-effects, fully unit-testable.
  */
 
+import { todayString } from './dateUtils.js';
+
 export const EMOJI_TO_ICON_KEY = {
   '🏋️': 'barbell',
   '🏃': 'person-simple-run',
@@ -85,6 +87,8 @@ export function validateActivity(input = {}) {
       }))
     : [];
 
+  const allowsNote = Boolean(input.allowsNote);
+
   if (errors.length > 0) {
     return { valid: false, errors, sanitized: null };
   }
@@ -101,6 +105,7 @@ export function validateActivity(input = {}) {
       icon,
       color,
       groups,
+      allowsNote,
       createdAt,
     },
   };
@@ -139,6 +144,7 @@ export function createDefaultActivity() {
         })),
       },
     ],
+    allowsNote: false,
     createdAt: 1700000000000,
   };
 }
@@ -169,14 +175,18 @@ export function isActivityCompleted(completedIds = [], activityId) {
 
 /**
  * Extracts a Set of unique dates from a list of completion records.
- * @param {Array<{ date: string }>} completions
+ * Only completed records (status === 'done' or missing legacy status) are included.
+ * @param {Array<{ date: string, status?: string }>} completions
  * @returns {Set<string>}
  */
 export function extractCompletedDates(completions = []) {
   const dates = new Set();
   for (const item of completions) {
     if (item && typeof item.date === 'string') {
-      dates.add(item.date);
+      const status = item.status || 'done';
+      if (status === 'done') {
+        dates.add(item.date);
+      }
     }
   }
   return dates;
@@ -219,8 +229,9 @@ export function getNextAvailablePresetColor(existingActivities = [], presetColor
 
 /**
  * Groups an array of completion records by date string (YYYY-MM-DD).
+ * Only entries with status === 'done' (or missing legacy status) count as completions.
  *
- * @param {Array<{ date: string, activityId: string }>} completions
+ * @param {Array<{ date: string, activityId: string, status?: string }>} completions
  * @returns {Record<string, string[]>} map of dateStr -> array of completed activityIds
  */
 export function groupCompletionsByDate(completions = []) {
@@ -228,6 +239,8 @@ export function groupCompletionsByDate(completions = []) {
   const result = {};
   for (const item of completions) {
     if (!item || !item.date || !item.activityId) continue;
+    const status = item.status || 'done';
+    if (status !== 'done') continue;
     if (!result[item.date]) {
       result[item.date] = [];
     }
@@ -303,5 +316,300 @@ export function getDayDotIndicators(completedActivityIds = [], activities = [], 
     hasOverflow: true,
     total,
   };
+}
+
+/**
+ * Computes marker indicators for a single day including all planning states:
+ * - feita ('done'): filled dot
+ * - planejada ('planned'): hollow ring
+ * - não feita ('missed'): small x
+ * Ordered by activity creation order (createdAt)
+ * Maximum 4 markers; if > 4, returns 3 markers with hasOverflow = true
+ *
+ * @param {Array<object|string>} dayCompletions
+ * @param {Array<{ id: string, color?: string, createdAt?: number }>} activities
+ * @param {number} [maxMarkers=4]
+ * @returns {{ markers: Array<{ color: string, status: string }>, hasOverflow: boolean, total: number }}
+ */
+export function getDayMarkerIndicators(dayCompletions = [], activities = [], maxMarkers = 4) {
+  if (!dayCompletions || dayCompletions.length === 0) {
+    return { markers: [], hasOverflow: false, total: 0 };
+  }
+
+  const actMap = new Map();
+  for (const act of activities) {
+    if (act && act.id) {
+      actMap.set(act.id, act);
+    }
+  }
+
+  const matching = [];
+  const seenActIds = new Set();
+  for (const item of dayCompletions) {
+    if (!item) continue;
+    const comp = typeof item === 'string' ? { activityId: item, status: 'done' } : item;
+    if (!comp.activityId || seenActIds.has(comp.activityId)) continue;
+    seenActIds.add(comp.activityId);
+    const act = actMap.get(comp.activityId);
+    if (act) {
+      matching.push({
+        act,
+        color: act.color || '#007aff',
+        status: comp.status || 'done',
+      });
+    }
+  }
+
+  // Order strictly by activity creation order (createdAt)
+  matching.sort((a, b) => (a.act.createdAt || 0) - (b.act.createdAt || 0));
+
+  const total = matching.length;
+  if (total <= maxMarkers) {
+    return {
+      markers: matching.map((m) => ({ color: m.color, status: m.status })),
+      hasOverflow: false,
+      total,
+    };
+  }
+
+  return {
+    markers: matching.slice(0, 3).map((m) => ({ color: m.color, status: m.status })),
+    hasOverflow: true,
+    total,
+  };
+}
+
+/* ─────────────────────────────────────────────────────────────
+   PLANNING & STATUS TRANSITIONS
+   Status model: 'planned' | 'done' | 'missed'
+   wasPlanned: boolean
+   Legacy entries without status count as 'done' with wasPlanned: false.
+   Future dates only allow none ↔ planned. Today and past allow all.
+   ───────────────────────────────────────────────────────────── */
+
+/**
+ * Trims and limits note string to 500 characters.
+ * @param {string} [note]
+ * @returns {string}
+ */
+export function sanitizeNote(note) {
+  return typeof note === 'string' ? note.trim().slice(0, 500) : '';
+}
+
+/**
+ * Normalizes a completion record so legacy entries without status/wasPlanned
+ * count as status 'done' with wasPlanned false, and note is trimmed (max 500 chars).
+ * @param {object|null} record
+ * @returns {object|null}
+ */
+export function normalizeCompletionRecord(record) {
+  if (!record) return null;
+  const rawNote = typeof record.note === 'string' ? record.note : '';
+  return {
+    ...record,
+    status: record.status || 'done',
+    wasPlanned: Boolean(record.wasPlanned),
+    optionIds: Array.isArray(record.optionIds)
+      ? record.optionIds
+      : Array.isArray(record.muscleGroupIds)
+      ? record.muscleGroupIds
+      : [],
+    note: rawNote.trim().slice(0, 500),
+  };
+}
+
+/**
+ * Transition: none → planned
+ * Allowed on all dates (future, today, past).
+ *
+ * @param {{ dateStr: string, activityId: string, optionIds?: string[], note?: string }} params
+ * @returns {object} The new planned completion record
+ */
+export function noneToPlanned({ dateStr, activityId, optionIds = [], note = '' }) {
+  if (!dateStr || !activityId) {
+    throw new Error('dateStr e activityId são obrigatórios');
+  }
+  return {
+    id: `${dateStr}:${activityId}`,
+    date: dateStr,
+    activityId,
+    status: 'planned',
+    wasPlanned: true,
+    optionIds: Array.isArray(optionIds) ? [...optionIds] : [],
+    note: sanitizeNote(note),
+  };
+}
+
+/**
+ * Transition: none → done
+ * Allowed only on today and past dates (future dates only allow none ↔ planned).
+ *
+ * @param {{ dateStr: string, activityId: string, optionIds?: string[], note?: string }} params
+ * @param {string} [todayStr]
+ * @returns {object} The new done completion record (wasPlanned: false)
+ */
+export function noneToDone({ dateStr, activityId, optionIds = [], note = '' }, todayStr = todayString()) {
+  if (!dateStr || !activityId) {
+    throw new Error('dateStr e activityId são obrigatórios');
+  }
+  if (dateStr > todayStr) {
+    throw new Error('Não é permitido marcar como feita em datas futuras');
+  }
+  return {
+    id: `${dateStr}:${activityId}`,
+    date: dateStr,
+    activityId,
+    status: 'done',
+    wasPlanned: false,
+    optionIds: Array.isArray(optionIds) ? [...optionIds] : [],
+    note: sanitizeNote(note),
+    completedAt: Date.now(),
+  };
+}
+
+/**
+ * Transition: planned → done
+ * Allowed only on today and past dates.
+ *
+ * @param {object} entry
+ * @param {string} [todayStr]
+ * @returns {object} The updated done completion record (wasPlanned: true)
+ */
+export function plannedToDone(entry, todayStr = todayString()) {
+  if (!entry) throw new Error('Entrada não encontrada');
+  const normalized = normalizeCompletionRecord(entry);
+  if (normalized.status !== 'planned') {
+    throw new Error('Apenas entradas planejadas podem ser marcadas como feita');
+  }
+  if (normalized.date > todayStr) {
+    throw new Error('Não é permitido marcar como feita em datas futuras');
+  }
+  return {
+    ...normalized,
+    status: 'done',
+    wasPlanned: true,
+    completedAt: normalized.completedAt || Date.now(),
+  };
+}
+
+/**
+ * Transition: planned → missed
+ * Allowed only on today and past dates.
+ *
+ * @param {object} entry
+ * @param {string} [todayStr]
+ * @returns {object} The updated missed completion record (wasPlanned: true)
+ */
+export function plannedToMissed(entry, todayStr = todayString()) {
+  if (!entry) throw new Error('Entrada não encontrada');
+  const normalized = normalizeCompletionRecord(entry);
+  if (normalized.status !== 'planned') {
+    throw new Error('Apenas entradas planejadas podem ser marcadas como não feita');
+  }
+  if (normalized.date > todayStr) {
+    throw new Error('Não é permitido marcar como não feita em datas futuras');
+  }
+  return {
+    ...normalized,
+    status: 'missed',
+    wasPlanned: true,
+  };
+}
+
+/**
+ * Transition: done or missed (when wasPlanned) → planned
+ * Allowed on today and past dates.
+ *
+ * @param {object} entry
+ * @param {string} [todayStr]
+ * @returns {object} The reverted planned completion record (wasPlanned: true)
+ */
+export function resolvedToPlanned(entry, todayStr = todayString()) {
+  if (!entry) throw new Error('Entrada não encontrada');
+  const normalized = normalizeCompletionRecord(entry);
+  if (!normalized.wasPlanned) {
+    throw new Error('Apenas entradas planejadas podem voltar para planejada');
+  }
+  if (normalized.status !== 'done' && normalized.status !== 'missed') {
+    throw new Error('Apenas entradas feitas ou não feitas podem voltar para planejada');
+  }
+  return {
+    ...normalized,
+    status: 'planned',
+    wasPlanned: true,
+  };
+}
+
+/**
+ * Transition: done (when not wasPlanned) → none
+ * Allowed on today and past dates.
+ *
+ * @param {object} entry
+ * @param {string} [todayStr]
+ * @returns {null}
+ */
+export function doneToNone(entry, todayStr = todayString()) {
+  if (!entry) throw new Error('Entrada não encontrada');
+  const normalized = normalizeCompletionRecord(entry);
+  if (normalized.status !== 'done' || normalized.wasPlanned) {
+    throw new Error('Apenas entradas feitas e não planejadas podem ser desmarcadas para none');
+  }
+  if (normalized.date > todayStr) {
+    throw new Error('Transição não permitida em datas futuras');
+  }
+  return null;
+}
+
+/**
+ * Transition: planned → none
+ * Allowed on all dates (future, today, past).
+ *
+ * @param {object} entry
+ * @returns {null}
+ */
+export function plannedToNone(entry) {
+  if (!entry) throw new Error('Entrada não encontrada');
+  return null;
+}
+
+/**
+ * Helper to apply a status transition cleanly.
+ *
+ * @param {object|null} entry – current completion record or null if none
+ * @param {'planned'|'done'|'missed'|'none'} action – target status
+ * @param {{ dateStr: string, activityId: string, optionIds?: string[] }} context
+ * @param {string} [todayStr]
+ * @returns {object|null} New record or null if deleted/none
+ */
+export function applyTransition(entry, action, { dateStr, activityId, optionIds = [] }, todayStr = todayString()) {
+  const norm = entry ? normalizeCompletionRecord(entry) : null;
+
+  if (action === 'planned') {
+    if (!norm) {
+      return noneToPlanned({ dateStr, activityId, optionIds });
+    }
+    return resolvedToPlanned(norm, todayStr);
+  }
+
+  if (action === 'done') {
+    if (!norm) {
+      return noneToDone({ dateStr, activityId, optionIds }, todayStr);
+    }
+    return plannedToDone(norm, todayStr);
+  }
+
+  if (action === 'missed') {
+    return plannedToMissed(norm, todayStr);
+  }
+
+  if (action === 'none') {
+    if (!norm) return null;
+    if (norm.wasPlanned) {
+      return plannedToNone(norm);
+    }
+    return doneToNone(norm, todayStr);
+  }
+
+  throw new Error(`Ação desconhecida: ${action}`);
 }
 

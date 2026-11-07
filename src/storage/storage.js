@@ -330,11 +330,14 @@ export async function getCompletionsWithDetailsForDate(dateStr) {
     request.onsuccess = () => {
       const records = (request.result || []).map((r) => ({
         ...r,
+        status: r.status || 'done',
+        wasPlanned: Boolean(r.wasPlanned),
         optionIds: Array.isArray(r.optionIds)
           ? r.optionIds
           : Array.isArray(r.muscleGroupIds)
           ? r.muscleGroupIds
           : [],
+        note: typeof r.note === 'string' ? r.note : '',
       }));
       resolve(records);
     };
@@ -349,7 +352,58 @@ export async function getCompletionsWithDetailsForDate(dateStr) {
  */
 export async function getCompletionsForDate(dateStr) {
   const records = await getCompletionsWithDetailsForDate(dateStr);
-  return records.map((r) => r.activityId);
+  return records.filter((r) => (r.status || 'done') === 'done').map((r) => r.activityId);
+}
+
+/**
+ * Saves a full completion record (insert or update).
+ * Preserves status ('planned' | 'done' | 'missed') and wasPlanned.
+ *
+ * @param {object} record
+ * @returns {Promise<object>}
+ */
+export async function saveCompletion(record) {
+  if (!record || !record.date || !record.activityId) {
+    throw new Error('date e activityId são obrigatórios no registro de completion');
+  }
+  const db = await getDB();
+  const id = record.id || `${record.date}:${record.activityId}`;
+  const toSave = {
+    ...record,
+    id,
+    status: record.status || 'done',
+    wasPlanned: Boolean(record.wasPlanned),
+    optionIds: Array.isArray(record.optionIds) ? record.optionIds : [],
+    note: typeof record.note === 'string' ? record.note.trim().slice(0, 500) : '',
+  };
+
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction('completions', 'readwrite');
+    const store = tx.objectStore('completions');
+    store.put(toSave);
+    tx.oncomplete = () => resolve(toSave);
+    tx.onerror = (event) => reject(event.target.error);
+  });
+}
+
+/**
+ * Deletes a completion record by date and activityId.
+ *
+ * @param {string} dateStr – "YYYY-MM-DD"
+ * @param {string} activityId
+ * @returns {Promise<void>}
+ */
+export async function deleteCompletion(dateStr, activityId) {
+  const db = await getDB();
+  const id = `${dateStr}:${activityId}`;
+
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction('completions', 'readwrite');
+    const store = tx.objectStore('completions');
+    store.delete(id);
+    tx.oncomplete = () => resolve();
+    tx.onerror = (event) => reject(event.target.error);
+  });
 }
 
 /**
@@ -371,18 +425,57 @@ export async function setCompletion(dateStr, activityId, completed, optionIds = 
     const store = tx.objectStore('completions');
 
     if (completed) {
-      store.put({
-        id,
-        date: dateStr,
-        activityId,
-        completedAt: Date.now(),
-        optionIds: Array.isArray(optionIds) ? optionIds : [],
-      });
+      const getReq = store.get(id);
+      getReq.onsuccess = () => {
+        const existing = getReq.result;
+        store.put({
+          id,
+          date: dateStr,
+          activityId,
+          status: 'done',
+          wasPlanned: existing ? Boolean(existing.wasPlanned) : false,
+          completedAt: Date.now(),
+          optionIds: Array.isArray(optionIds) ? optionIds : [],
+          note: existing ? (existing.note || '') : '',
+        });
+      };
     } else {
       store.delete(id);
     }
 
     tx.oncomplete = () => resolve();
+    tx.onerror = (event) => reject(event.target.error);
+  });
+}
+
+/**
+ * Sets the note for a completion entry.
+ * @param {string} dateStr
+ * @param {string} activityId
+ * @param {string} note
+ * @returns {Promise<string>}
+ */
+export async function setCompletionNote(dateStr, activityId, note) {
+  const db = await getDB();
+  const id = `${dateStr}:${activityId}`;
+  const sanitized = typeof note === 'string' ? note.trim().slice(0, 500) : '';
+
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction('completions', 'readwrite');
+    const store = tx.objectStore('completions');
+    const getReq = store.get(id);
+
+    getReq.onsuccess = () => {
+      const existing = getReq.result;
+      if (!existing) {
+        resolve('');
+        return;
+      }
+      existing.note = sanitized;
+      store.put(existing);
+    };
+
+    tx.oncomplete = () => resolve(sanitized);
     tx.onerror = (event) => reject(event.target.error);
   });
 }
@@ -443,11 +536,14 @@ export async function getCompletionsForDateRange(startDateStr, endDateStr) {
     request.onsuccess = () => {
       const records = (request.result || []).map((r) => ({
         ...r,
+        status: r.status || 'done',
+        wasPlanned: Boolean(r.wasPlanned),
         optionIds: Array.isArray(r.optionIds)
           ? r.optionIds
           : Array.isArray(r.muscleGroupIds)
           ? r.muscleGroupIds
           : [],
+        note: typeof r.note === 'string' ? r.note : '',
       }));
       resolve(records);
     };

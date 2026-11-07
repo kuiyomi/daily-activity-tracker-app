@@ -21,7 +21,13 @@ import {
 import {
   groupCompletionsByDate,
   getDayDotIndicators,
+  getDayMarkerIndicators,
   rainedDateSet,
+  noneToPlanned,
+  noneToDone,
+  plannedToDone,
+  plannedToMissed,
+  resolvedToPlanned,
 } from '../logic/activityLogic.js';
 import {
   getCompletionsForDateRange,
@@ -30,10 +36,17 @@ import {
   getCompletionsWithDetailsForDate,
   getDayEntry,
   setCompletion,
+  saveCompletion,
+  deleteCompletion,
   setDayRained,
 } from '../storage/storage.js';
 import { ICONS, renderIconGlyph } from './icons.js';
-import { renderActivityCheckRowHtml, formatActivitySubtitle } from './dayDetailView.js';
+import {
+  renderActivityCheckRowHtml,
+  renderActivityNoteRowHtml,
+  attachNoteAutosave,
+  formatActivitySubtitle,
+} from './dayDetailView.js';
 import '../version.js';
 
 const CALENDAR_VIEW_KEY = 'calendar_view_mode';
@@ -143,6 +156,11 @@ export async function mountCalendarView(root, { onDaySelect }) {
                 <div class="cal-grid-stage" id="cal-grid-stage">
                   <div class="cal-grid" id="cal-grid" role="grid"></div>
                 </div>
+                <div class="cal-legend" id="cal-legend" aria-label="Legenda do calendário">
+                  <span class="cal-legend-item">● feita</span>
+                  <span class="cal-legend-item">○ planejada</span>
+                  <span class="cal-legend-item">× não feita</span>
+                </div>
               </div>
               <div class="cal-view cal-week-view" id="cal-week-view" style="display: none;">
                 <div class="cal-week-stage" id="cal-week-stage">
@@ -202,23 +220,100 @@ export async function mountCalendarView(root, { onDaySelect }) {
   let cachedTodayCompletions = [];
   let cachedTodayEntry = null;
 
+  function renderMonthCellMarker(marker) {
+    const status = marker.status || 'done';
+    const color = marker.color || '#007aff';
+    if (status === 'planned') {
+      return `<span class="cal-dot cal-dot--planned" data-status="planned" style="border-color: ${color};" aria-hidden="true"></span>`;
+    }
+    if (status === 'missed') {
+      return `<span class="cal-dot cal-dot--missed" data-status="missed" style="color: ${color};" aria-hidden="true"><svg width="7" height="7" viewBox="0 0 7 7" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><line x1="1" y1="1" x2="6" y2="6"></line><line x1="6" y1="1" x2="1" y2="6"></line></svg></span>`;
+    }
+    return `<span class="cal-dot cal-dot--done" data-status="done" style="background-color: ${color};" aria-hidden="true"></span>`;
+  }
+
+  function renderWeekRowContent({ dayComps, activityMap, dateStr, todayStr, isRained, hasNote }) {
+    const badgesHtml = dayComps
+      .map((comp) => {
+        const act = activityMap.get(comp.activityId);
+        if (!act) return '';
+        const status = comp.status || 'done';
+        if (status === 'planned') {
+          return `
+            <div class="activity-icon-badge activity-icon-badge--sm activity-icon-badge--planned" style="border: 1.5px solid ${act.color}; color: ${act.color}; background-color: transparent;" aria-hidden="true" title="${escapeHtml(act.name)} (Planejada)">
+              ${renderIconGlyph(act.icon)}
+            </div>
+          `;
+        }
+        if (status === 'missed') {
+          return `
+            <div class="activity-icon-badge activity-icon-badge--sm activity-icon-badge--missed" style="background-color: ${act.color};" aria-hidden="true" title="${escapeHtml(act.name)} (Não feita)">
+              ${renderIconGlyph(act.icon)}
+              <span class="badge-missed-x" aria-hidden="true">×</span>
+            </div>
+          `;
+        }
+        return `
+          <div class="activity-icon-badge activity-icon-badge--sm activity-icon-badge--done" style="background-color: ${act.color};" aria-hidden="true" title="${escapeHtml(act.name)}">
+            ${renderIconGlyph(act.icon)}
+          </div>
+        `;
+      })
+      .filter(Boolean)
+      .join('');
+
+    const isPast = dateStr < todayStr;
+    const hasPending = isPast && dayComps.some((c) => (c.status || 'done') === 'planned');
+
+    const optionNames = [];
+    for (const comp of dayComps) {
+      const act = activityMap.get(comp.activityId);
+      if (!act) continue;
+      const subtitle = formatActivitySubtitle(act, comp.optionIds || []);
+      if (subtitle) {
+        optionNames.push(subtitle);
+      }
+    }
+    const optionsText = optionNames.join(', ');
+
+    let secondaryHtml = '';
+    if (hasPending || optionsText || hasNote) {
+      secondaryHtml = `
+        <div class="cal-week-secondary-row">
+          ${hasPending ? `<span class="pending-badge-text">Pendente</span>` : ''}
+          ${hasPending && optionsText ? `<span class="cal-week-separator">•</span>` : ''}
+          ${optionsText ? `<span class="cal-week-options-text">${escapeHtml(optionsText)}</span>` : ''}
+          ${hasNote ? `<span class="cal-week-note-icon note-icon" aria-label="Observação" title="Observação">${ICONS['note-pencil']}</span>` : ''}
+        </div>
+      `;
+    }
+
+    const contentColHtml = `
+      ${badgesHtml ? `<div class="cal-week-badges">${badgesHtml}</div>` : ''}
+      ${secondaryHtml}
+    `;
+
+    const rainColHtml = isRained
+      ? `<span class="cal-week-rain" role="img" aria-label="Choveu">${ICONS['cloud-rain']}</span>`
+      : '';
+
+    return { contentColHtml, rainColHtml };
+  }
+
   async function updateTodayCellUI() {
     const todayStr = todayString();
 
     // 1. Month cell update
     const cell = gridEl.querySelector(`.cal-day[data-date="${todayStr}"]`);
     if (cell) {
-      const completedIds = cachedTodayCompletions.map((c) => c.activityId);
-      const hasCompletions = completedIds.length > 0;
+      const { markers, hasOverflow } = getDayMarkerIndicators(cachedTodayCompletions, cachedActivities, 4);
+      const hasEntries = markers.length > 0;
       const rained = Boolean(cachedTodayEntry?.rained);
-      const { dots, hasOverflow } = getDayDotIndicators(completedIds, cachedActivities, 4);
 
-      cell.classList.toggle('cal-day--has-completions', hasCompletions);
+      cell.classList.toggle('cal-day--has-completions', hasEntries);
       cell.classList.toggle('cal-day--rained', rained);
 
-      const dotsHtml = dots
-        .map((color) => `<span class="cal-dot" style="background-color: ${color};"></span>`)
-        .join('');
+      const dotsHtml = markers.map(renderMonthCellMarker).join('');
       const moreHtml = hasOverflow ? `<span class="cal-dots-more">+</span>` : '';
       const rainSlot = cell.querySelector('.cal-day-rain');
       if (rainSlot) {
@@ -245,44 +340,21 @@ export async function mountCalendarView(root, { onDaySelect }) {
     const weekRow = weekListEl.querySelector(`.cal-week-row[data-date="${todayStr}"]`);
     if (weekRow) {
       const activityMap = new Map(cachedActivities.map((a) => [a.id, a]));
-      const badgesHtml = cachedTodayCompletions
-        .map((comp) => {
-          const act = activityMap.get(comp.activityId);
-          if (!act) return '';
-          return `
-            <div class="activity-icon-badge activity-icon-badge--sm" style="background-color: ${act.color};" aria-hidden="true" title="${escapeHtml(act.name)}">
-              ${renderIconGlyph(act.icon)}
-            </div>
-          `;
-        })
-        .filter(Boolean)
-        .join('');
-
-      const optionNames = [];
-      for (const comp of cachedTodayCompletions) {
-        const act = activityMap.get(comp.activityId);
-        if (!act) continue;
-        const subtitle = formatActivitySubtitle(act, comp.optionIds || []);
-        if (subtitle) {
-          optionNames.push(subtitle);
-        }
-      }
-      const optionsText = optionNames.join(', ');
       const isRained = Boolean(cachedTodayEntry?.rained);
+      const hasNote = cachedTodayCompletions.some((c) => Boolean(c.note && c.note.trim())) || Boolean(cachedTodayEntry?.notes?.trim());
+      const { contentColHtml, rainColHtml } = renderWeekRowContent({
+        dayComps: cachedTodayCompletions,
+        activityMap,
+        dateStr: todayStr,
+        todayStr,
+        isRained,
+        hasNote,
+      });
 
       const contentCol = weekRow.querySelector('.cal-week-content-col');
-      if (contentCol) {
-        contentCol.innerHTML = `
-          ${badgesHtml ? `<div class="cal-week-badges">${badgesHtml}</div>` : ''}
-          ${optionsText ? `<span class="cal-week-options-text">${escapeHtml(optionsText)}</span>` : ''}
-        `;
-      }
+      if (contentCol) contentCol.innerHTML = contentColHtml;
       const rainCol = weekRow.querySelector('.cal-week-rain-col');
-      if (rainCol) {
-        rainCol.innerHTML = isRained
-          ? `<span class="cal-week-rain" role="img" aria-label="Choveu">${ICONS['cloud-rain']}</span>`
-          : '';
-      }
+      if (rainCol) rainCol.innerHTML = rainColHtml;
     }
   }
 
@@ -313,15 +385,57 @@ export async function mountCalendarView(root, { onDaySelect }) {
     const completionMap = new Map(cachedTodayCompletions.map((c) => [c.activityId, c]));
     const isRained = Boolean(cachedTodayEntry?.rained);
 
-    const rowsHtml = cachedActivities
-      .map((act) => {
-        const comp = completionMap.get(act.id);
-        const isDone = Boolean(comp);
-        const selectedOptionIds = comp?.optionIds || [];
-        const subtitleText = formatActivitySubtitle(act, selectedOptionIds);
-        return renderActivityCheckRowHtml(act, isDone, subtitleText, { showDetailsButton: true });
-      })
-      .join('');
+    const plannedList = [];
+    const unplannedList = [];
+    for (const act of cachedActivities) {
+      const comp = completionMap.get(act.id);
+      if (comp && comp.wasPlanned) {
+        plannedList.push({ act, comp });
+      } else {
+        unplannedList.push({ act, comp });
+      }
+    }
+
+    let plannedHtml = '';
+    if (plannedList.length === 0) {
+      plannedHtml = `
+        <div class="inset-row empty-state-row">
+          <p class="empty-state-text">Nenhuma atividade planejada</p>
+        </div>
+      `;
+    } else {
+      plannedHtml = plannedList
+        .map(({ act, comp }) => {
+          const optText = formatActivitySubtitle(act, comp.optionIds || []);
+          return renderActivityCheckRowHtml(act, comp, escapeHtml(optText), {
+            isPlanned: true,
+            showInlineStatusButtons: true,
+            note: comp.note || '',
+          });
+        })
+        .join('');
+    }
+
+    let unplannedHtml = '';
+    if (unplannedList.length === 0) {
+      unplannedHtml = `
+        <div class="inset-row empty-state-row">
+          <p class="empty-state-text">Todas as atividades estão no plano</p>
+        </div>
+      `;
+    } else {
+      unplannedHtml = unplannedList
+        .map(({ act, comp }) => {
+          const isDone = Boolean(comp && comp.status === 'done');
+          const optText = formatActivitySubtitle(act, comp?.optionIds || []);
+          return renderActivityCheckRowHtml(act, comp, escapeHtml(optText), {
+            isPlanned: false,
+            showPlanButton: true,
+            note: comp?.note || '',
+          });
+        })
+        .join('');
+    }
 
     const rainedRowHtml = `
       <label class="inset-row toggle-row" for="today-card-rained-switch">
@@ -342,79 +456,130 @@ export async function mountCalendarView(root, { onDaySelect }) {
       </label>
     `;
 
-    todayCardContent.innerHTML = rowsHtml + rainedRowHtml;
+    todayCardContent.innerHTML = `
+      <div class="today-subhead">Planejadas</div>
+      ${plannedHtml}
+      <div class="today-subhead">Atividades</div>
+      ${unplannedHtml}
+      ${rainedRowHtml}
+    `;
 
-    // Attach listeners
-    todayCardContent.querySelectorAll('.activity-check-row').forEach((row) => {
-      const toggle = async (e) => {
-        // If clicking directly on the "Detalhes" button, navigate to day screen
-        if (e.target.closest('.today-details-btn')) {
-          e.stopPropagation();
-          onDaySelect(todayStr);
-          return;
+    function attachTodayNoteAutosave() {
+      attachNoteAutosave(todayCardContent, async (actId, noteVal) => {
+        const comp = completionMap.get(actId);
+        if (!comp) return;
+        const sanitized = noteVal.trim().slice(0, 500);
+        comp.note = sanitized;
+        try {
+          await saveCompletion(comp);
+        } catch (err) {
+          console.error('Falha ao salvar observação da atividade hoje:', err);
         }
+        updateTodayCellUI();
+      });
+    }
 
-        const activityId = row.dataset.id;
-        const currentlyDone = completionMap.has(activityId);
-        const newDone = !currentlyDone;
-        const act = cachedActivities.find((a) => a.id === activityId);
+    attachTodayNoteAutosave();
 
-        if (newDone) {
-          row.classList.add('activity-check-row--done');
-          row.setAttribute('aria-checked', 'true');
-          const newComp = {
-            id: `${todayStr}:${activityId}`,
-            date: todayStr,
-            activityId,
-            completedAt: Date.now(),
-            optionIds: [],
-          };
-          completionMap.set(activityId, newComp);
+    // Inline status buttons in planned rows
+    todayCardContent.querySelectorAll('.btn-inline-status--done').forEach((btn) => {
+      btn.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        const actId = btn.dataset.actId;
+        const comp = completionMap.get(actId);
+        if (!comp) return;
+        try {
+          const updated = comp.status === 'done'
+            ? resolvedToPlanned(comp, todayStr)
+            : plannedToDone(comp, todayStr);
+          completionMap.set(actId, updated);
           cachedTodayCompletions = Array.from(completionMap.values());
+          await saveCompletion(updated);
+        } catch (err) {
+          console.error('Erro ao alternar status Feita hoje:', err);
+        }
+        updateTodayCellUI();
+        await renderTodayCard();
+      });
+    });
 
-          const subtitleEl = row.querySelector(`#subtitle-${activityId}`);
-          if (subtitleEl) subtitleEl.textContent = '';
+    todayCardContent.querySelectorAll('.btn-inline-status--missed').forEach((btn) => {
+      btn.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        const actId = btn.dataset.actId;
+        const comp = completionMap.get(actId);
+        if (!comp) return;
+        try {
+          const updated = comp.status === 'missed'
+            ? resolvedToPlanned(comp, todayStr)
+            : plannedToMissed(comp, todayStr);
+          completionMap.set(actId, updated);
+          cachedTodayCompletions = Array.from(completionMap.values());
+          await saveCompletion(updated);
+        } catch (err) {
+          console.error('Erro ao alternar status Não feita hoje:', err);
+        }
+        updateTodayCellUI();
+        await renderTodayCard();
+      });
+    });
 
-          // Add Detalhes button if not present
-          if (!row.querySelector('.today-details-btn')) {
-            const btn = document.createElement('button');
-            btn.type = 'button';
-            btn.className = 'today-details-btn';
-            btn.dataset.actId = activityId;
-            btn.setAttribute('aria-label', `Detalhes de ${act?.name || ''}`);
-            btn.textContent = 'Detalhes';
-            btn.addEventListener('click', (ev) => {
-              ev.stopPropagation();
-              onDaySelect(todayStr);
-            });
-            row.appendChild(btn);
-          }
+    // "Planejar" button in unplanned rows
+    todayCardContent.querySelectorAll('.btn-plan-activity').forEach((btn) => {
+      btn.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        const actId = btn.dataset.actId;
+        const act = cachedActivities.find((a) => a.id === actId);
+        if (!act) return;
+        try {
+          const plannedRecord = noneToPlanned({ dateStr: todayStr, activityId: actId, optionIds: [] });
+          completionMap.set(actId, plannedRecord);
+          cachedTodayCompletions = Array.from(completionMap.values());
+          await saveCompletion(plannedRecord);
+        } catch (err) {
+          console.error('Erro ao planejar atividade hoje:', err);
+        }
+        updateTodayCellUI();
+        await renderTodayCard();
+      });
+    });
 
-          try {
-            await setCompletion(todayStr, activityId, true, []);
-          } catch (err) {
-            console.error('Erro ao marcar atividade hoje:', err);
-          }
-        } else {
-          row.classList.remove('activity-check-row--done');
-          row.setAttribute('aria-checked', 'false');
+    // Planned row click (outside inline buttons) -> opens day screen
+    todayCardContent.querySelectorAll('.planned-check-row').forEach((row) => {
+      row.addEventListener('click', (e) => {
+        if (e.target.closest('.today-inline-actions, .btn-inline-status, .activity-note-input')) return;
+        onDaySelect(todayStr);
+      });
+    });
+
+    // Unplanned row click -> toggles done / undone
+    todayCardContent.querySelectorAll('.unplanned-check-row').forEach((row) => {
+      const toggle = async (e) => {
+        if (e.target.closest('.btn-plan-activity, .today-details-btn, .activity-note-input')) return;
+        const activityId = row.dataset.id;
+        const comp = completionMap.get(activityId);
+        const currentlyDone = Boolean(comp && comp.status === 'done');
+
+        if (currentlyDone) {
           completionMap.delete(activityId);
           cachedTodayCompletions = Array.from(completionMap.values());
-
-          const subtitleEl = row.querySelector(`#subtitle-${activityId}`);
-          if (subtitleEl) subtitleEl.textContent = '';
-
-          const detailsBtn = row.querySelector('.today-details-btn');
-          if (detailsBtn) detailsBtn.remove();
-
           try {
-            await setCompletion(todayStr, activityId, false, []);
+            await deleteCompletion(todayStr, activityId);
           } catch (err) {
             console.error('Erro ao desmarcar atividade hoje:', err);
           }
+        } else {
+          const newDone = noneToDone({ dateStr: todayStr, activityId, optionIds: [] }, todayStr);
+          completionMap.set(activityId, newDone);
+          cachedTodayCompletions = Array.from(completionMap.values());
+          try {
+            await saveCompletion(newDone);
+          } catch (err) {
+            console.error('Erro ao marcar atividade hoje:', err);
+          }
         }
-
         updateTodayCellUI();
+        await renderTodayCard();
       };
 
       row.addEventListener('click', toggle);
@@ -426,7 +591,7 @@ export async function mountCalendarView(root, { onDaySelect }) {
       });
     });
 
-    // Detalhes buttons inside activity rows
+    // Detalhes buttons inside activity rows (if any)
     todayCardContent.querySelectorAll('.today-details-btn').forEach((btn) => {
       btn.addEventListener('click', (e) => {
         e.stopPropagation();
@@ -491,7 +656,11 @@ export async function mountCalendarView(root, { onDaySelect }) {
     gridStage.querySelectorAll('.cal-grid--leaving').forEach((grid) => grid.remove());
     gridEl.className = 'cal-grid';
 
-    const completionsByDate = groupCompletionsByDate(completions);
+    const completionsByDate = {};
+    for (const c of completions) {
+      if (!completionsByDate[c.date]) completionsByDate[c.date] = [];
+      completionsByDate[c.date].push(c);
+    }
     const rainyDates = rainedDateSet(dayEntries);
 
     gridEl.classList.toggle('cal-grid--six-weeks', days.length === 42);
@@ -501,24 +670,22 @@ export async function mountCalendarView(root, { onDaySelect }) {
       const isCurrentMonth = date.getMonth() === currentMonth;
       const isToday = dateStr === todayStr;
       const rained = rainyDates.has(dateStr);
-      const completedIds = completionsByDate[dateStr] || [];
-      const hasCompletions = completedIds.length > 0;
-      const { dots, hasOverflow } = getDayDotIndicators(completedIds, activities, 4);
+      const dayComps = completionsByDate[dateStr] || [];
+      const { markers, hasOverflow } = getDayMarkerIndicators(dayComps, activities, 4);
+      const hasEntries = markers.length > 0;
 
       const btn = document.createElement('button');
       btn.className = [
         'cal-day',
         isCurrentMonth ? '' : 'cal-day--other-month',
         isToday ? 'cal-day--today' : '',
-        hasCompletions ? 'cal-day--has-completions' : '',
+        hasEntries ? 'cal-day--has-completions' : '',
         rained ? 'cal-day--rained' : '',
       ]
         .filter(Boolean)
         .join(' ');
 
-      const dotsHtml = dots
-        .map((color) => `<span class="cal-dot" style="background-color: ${color};"></span>`)
-        .join('');
+      const dotsHtml = markers.map(renderMonthCellMarker).join('');
       const moreHtml = hasOverflow ? `<span class="cal-dots-more">+</span>` : '';
       const rainHtml = rained
         ? `<span class="cal-day-rain" role="img" aria-label="Choveu">${ICONS['cloud-rain']}</span>`
@@ -613,6 +780,7 @@ export async function mountCalendarView(root, { onDaySelect }) {
       completionsByDate[c.date].push(c);
     }
     const rainyDates = rainedDateSet(dayEntries);
+    const dayEntriesMap = new Map((dayEntries || []).map((e) => [e.date, e]));
     const weekdayNames = weekdayLabels();
 
     weekRange.days.forEach((date) => {
@@ -620,32 +788,17 @@ export async function mountCalendarView(root, { onDaySelect }) {
       const isToday = dateStr === todayStr;
       const rained = rainyDates.has(dateStr);
       const dayComps = completionsByDate[dateStr] || [];
+      const dayEntry = dayEntriesMap.get(dateStr);
+      const hasNote = dayComps.some((c) => Boolean(c.note && c.note.trim())) || Boolean(dayEntry?.notes?.trim());
 
-      // Badges: 24px icon badges in order of completions
-      const badgesHtml = dayComps
-        .map((comp) => {
-          const act = activityMap.get(comp.activityId);
-          if (!act) return '';
-          return `
-            <div class="activity-icon-badge activity-icon-badge--sm" style="background-color: ${act.color};" aria-hidden="true" title="${escapeHtml(act.name)}">
-              ${renderIconGlyph(act.icon)}
-            </div>
-          `;
-        })
-        .filter(Boolean)
-        .join('');
-
-      // Option subtitle text: e.g. "Peito, Tríceps"
-      const optionNames = [];
-      for (const comp of dayComps) {
-        const act = activityMap.get(comp.activityId);
-        if (!act) continue;
-        const subtitle = formatActivitySubtitle(act, comp.optionIds || []);
-        if (subtitle) {
-          optionNames.push(subtitle);
-        }
-      }
-      const optionsText = optionNames.join(', ');
+      const { contentColHtml, rainColHtml } = renderWeekRowContent({
+        dayComps,
+        activityMap,
+        dateStr,
+        todayStr,
+        isRained: rained,
+        hasNote,
+      });
 
       const rowBtn = document.createElement('button');
       rowBtn.type = 'button';
@@ -660,7 +813,6 @@ export async function mountCalendarView(root, { onDaySelect }) {
       if (dayComps.length > 0) {
         const actsDone = dayComps.map((c) => activityMap.get(c.activityId)?.name).filter(Boolean).join(', ');
         if (actsDone) ariaLabel += `, ${actsDone}`;
-        if (optionsText) ariaLabel += ` (${optionsText})`;
       }
       if (rained) ariaLabel += ', Choveu';
       rowBtn.setAttribute('aria-label', ariaLabel);
@@ -671,11 +823,10 @@ export async function mountCalendarView(root, { onDaySelect }) {
           <span class="cal-week-day-num ${isToday ? 'cal-week-day-num--today' : ''}">${date.getDate()}</span>
         </div>
         <div class="cal-week-content-col">
-          ${badgesHtml ? `<div class="cal-week-badges">${badgesHtml}</div>` : ''}
-          ${optionsText ? `<span class="cal-week-options-text">${escapeHtml(optionsText)}</span>` : ''}
+          ${contentColHtml}
         </div>
         <div class="cal-week-rain-col">
-          ${rained ? `<span class="cal-week-rain" role="img" aria-label="Choveu">${ICONS['cloud-rain']}</span>` : ''}
+          ${rainColHtml}
         </div>
       `;
 

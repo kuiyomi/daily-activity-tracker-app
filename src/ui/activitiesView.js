@@ -208,12 +208,14 @@ export async function mountActivitiesView(root, { onBack, onFormOpen, onFormClos
     if (activityToEdit) {
       currentDraft = JSON.parse(JSON.stringify(activityToEdit));
       if (!Array.isArray(currentDraft.groups)) currentDraft.groups = [];
+      currentDraft.allowsNote = Boolean(activityToEdit.allowsNote);
     } else {
       currentDraft = {
         name: '',
         icon: ACTIVITY_ICON_KEYS[0],
         color: getNextAvailablePresetColor(currentActivities, PRESET_COLORS),
         groups: [],
+        allowsNote: false,
       };
     }
 
@@ -371,6 +373,29 @@ export async function mountActivitiesView(root, { onBack, onFormOpen, onFormClos
             </div>
           </div>
 
+          <!-- Section: Observações -->
+          <div class="inset-section">
+            <div class="inset-section-header">
+              <span>Observações</span>
+            </div>
+            <div class="inset-group">
+              <label class="inset-row toggle-row" for="form-act-allows-note">
+                <span class="toggle-label-title">Permitir observação</span>
+                <input
+                  type="checkbox"
+                  id="form-act-allows-note"
+                  class="ios-switch"
+                  role="switch"
+                  aria-label="Permitir observação"
+                  ${currentDraft.allowsNote ? 'checked' : ''}
+                />
+              </label>
+            </div>
+            <div class="inset-section-footer">
+              <span>Mostra um campo de observação nos dias em que a atividade for planejada ou registrada.</span>
+            </div>
+          </div>
+
           <!-- Section: Excluir atividade (if editing) -->
           ${
             isEditing
@@ -454,6 +479,14 @@ export async function mountActivitiesView(root, { onBack, onFormOpen, onFormClos
       updateSelectedColor(e.target.value);
     });
 
+    // Allows note switch
+    const allowsNoteSwitch = container.querySelector('#form-act-allows-note');
+    if (allowsNoteSwitch) {
+      allowsNoteSwitch.addEventListener('change', () => {
+        currentDraft.allowsNote = allowsNoteSwitch.checked;
+      });
+    }
+
     // Back button
     container.querySelector('#btn-back-activity-form').addEventListener('click', () => {
       renderList('back');
@@ -471,6 +504,7 @@ export async function mountActivitiesView(root, { onBack, onFormOpen, onFormClos
         icon: currentDraft.icon || ACTIVITY_ICON_KEYS[0],
         color: currentDraft.color || '#007aff',
         groups: Array.isArray(currentDraft.groups) ? currentDraft.groups : [],
+        allowsNote: Boolean(currentDraft.allowsNote),
       };
 
       if (isEditing && currentDraft.id) {
