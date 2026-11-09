@@ -11,6 +11,11 @@ import {
   DEFAULT_MUSCLE_GROUPS,
   muscleGroupSlug,
 } from '../logic/activityLogic.js';
+import {
+  generateDemoData,
+  filterDemoDataForSeeding,
+  getDemoRecordKeysToRemove,
+} from '../logic/demoData.js';
 
 export const DB_NAME = 'DadsCalendarDB';
 export const DB_VERSION = 3;
@@ -563,3 +568,145 @@ export async function getDatesWithCompletions(startDateStr, endDateStr) {
   const records = await getCompletionsForDateRange(startDateStr, endDateStr);
   return extractCompletedDates(records);
 }
+
+/* ─────────────────────────────────────────────────────────────
+   SAMPLE / DEMO DATA & RESET
+   ───────────────────────────────────────────────────────────── */
+
+/**
+ * Seeds sample/demo data safely without overwriting non-demo records.
+ * @param {string | Date} [todayArg]
+ * @returns {Promise<{ activitiesCount: number, completionsCount: number, dayEntriesCount: number }>}
+ */
+export async function seedDemoData(todayArg) {
+  const db = await getDB();
+
+  // Read existing records to apply safety filter
+  const existing = await new Promise((resolve, reject) => {
+    const tx = db.transaction(['activities', 'completions', 'dayEntries'], 'readonly');
+    const actReq = tx.objectStore('activities').getAll();
+    const compReq = tx.objectStore('completions').getAll();
+    const dayReq = tx.objectStore('dayEntries').getAll();
+
+    tx.oncomplete = () => {
+      resolve({
+        activities: actReq.result || [],
+        completions: compReq.result || [],
+        dayEntries: dayReq.result || [],
+      });
+    };
+    tx.onerror = (e) => reject(e.target.error);
+  });
+
+  const generated = generateDemoData(todayArg);
+  const safeData = filterDemoDataForSeeding(generated, existing);
+
+  await new Promise((resolve, reject) => {
+    const tx = db.transaction(['activities', 'completions', 'dayEntries'], 'readwrite');
+    const actStore = tx.objectStore('activities');
+    const compStore = tx.objectStore('completions');
+    const dayStore = tx.objectStore('dayEntries');
+
+    for (const act of safeData.activities) {
+      actStore.put(act);
+    }
+    for (const comp of safeData.completions) {
+      compStore.put(comp);
+    }
+    for (const day of safeData.dayEntries) {
+      dayStore.put(day);
+    }
+
+    tx.oncomplete = () => resolve();
+    tx.onerror = (e) => reject(e.target.error);
+  });
+
+  return {
+    activitiesCount: safeData.activities.length,
+    completionsCount: safeData.completions.length,
+    dayEntriesCount: safeData.dayEntries.length,
+  };
+}
+
+/**
+ * Removes only sample records (activities, completions, day entries) flagged with demo: true.
+ * Leaves all real/user records untouched.
+ * @returns {Promise<{ activitiesRemoved: number, completionsRemoved: number, dayEntriesRemoved: number }>}
+ */
+export async function removeDemoData() {
+  const db = await getDB();
+
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(['activities', 'completions', 'dayEntries'], 'readwrite');
+    const actStore = tx.objectStore('activities');
+    const compStore = tx.objectStore('completions');
+    const dayStore = tx.objectStore('dayEntries');
+
+    let activitiesRemoved = 0;
+    let completionsRemoved = 0;
+    let dayEntriesRemoved = 0;
+
+    const actCursorReq = actStore.openCursor();
+    actCursorReq.onsuccess = (e) => {
+      const cursor = e.target.result;
+      if (cursor) {
+        if (cursor.value && cursor.value.demo === true) {
+          cursor.delete();
+          activitiesRemoved++;
+        }
+        cursor.continue();
+      }
+    };
+
+    const compCursorReq = compStore.openCursor();
+    compCursorReq.onsuccess = (e) => {
+      const cursor = e.target.result;
+      if (cursor) {
+        if (cursor.value && cursor.value.demo === true) {
+          cursor.delete();
+          completionsRemoved++;
+        }
+        cursor.continue();
+      }
+    };
+
+    const dayCursorReq = dayStore.openCursor();
+    dayCursorReq.onsuccess = (e) => {
+      const cursor = e.target.result;
+      if (cursor) {
+        if (cursor.value && cursor.value.demo === true) {
+          cursor.delete();
+          dayEntriesRemoved++;
+        }
+        cursor.continue();
+      }
+    };
+
+    tx.oncomplete = () => {
+      resolve({ activitiesRemoved, completionsRemoved, dayEntriesRemoved });
+    };
+    tx.onerror = (e) => reject(e.target.error);
+  });
+}
+
+/**
+ * Clears all stores in IndexedDB and reseeds the default Academia activity.
+ * @returns {Promise<void>}
+ */
+export async function clearAllData() {
+  const db = await getDB();
+
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(['activities', 'completions', 'dayEntries'], 'readwrite');
+    tx.objectStore('activities').clear();
+    tx.objectStore('completions').clear();
+    tx.objectStore('dayEntries').clear();
+
+    const defaultAct = createDefaultActivity();
+    tx.objectStore('activities').put(defaultAct);
+
+    tx.oncomplete = () => resolve();
+    tx.onerror = (e) => reject(e.target.error);
+  });
+}
+

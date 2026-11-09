@@ -7,7 +7,7 @@
  * All URLs use relative paths to support GitHub Pages subpath deployment (/repo-name/).
  */
 
-const SW_VERSION = '0.15.0';
+const SW_VERSION = '0.16.0';
 
 importScripts('./src/version.js');
 
@@ -27,6 +27,7 @@ const PRECACHE_ASSETS = [
   './src/logic/dateUtils.js',
   './src/logic/activityLogic.js',
   './src/logic/stats.js',
+  './src/logic/demoData.js',
   './src/logic/theme.js',
   './src/ui/calendarView.js',
   './src/ui/dayDetailView.js',
