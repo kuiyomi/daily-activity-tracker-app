@@ -45,6 +45,7 @@ server.listen(0, '127.0.0.1', async () => {
     const expected = {
       calendario: 'Calendário',
       atividades: 'Atividades',
+      resumo: 'Resumo',
       ajustes: 'Ajustes',
     };
     const tabs = Object.keys(expected);

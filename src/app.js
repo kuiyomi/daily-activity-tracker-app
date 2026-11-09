@@ -7,7 +7,7 @@
 import { mountCalendarView } from './ui/calendarView.js';
 import { mountDayDetailView } from './ui/dayDetailView.js';
 import { mountActivitiesView } from './ui/activitiesView.js';
-import { mountSummaryView } from './ui/summaryView.js';
+import { mountSummaryView, mountSummaryActivityView } from './ui/summaryView.js';
 import { mountSettingsView } from './ui/settingsView.js';
 import { ICONS } from './ui/icons.js';
 import './version.js';
@@ -74,7 +74,7 @@ root.innerHTML = `
         <span class="tab-label">Atividades</span>
       </button>
 
-      <button class="ios-tab-item hidden" data-tab="resumo" aria-label="Aba Resumo" style="display: none;" aria-hidden="true">
+      <button class="ios-tab-item" data-tab="resumo" aria-label="Aba Resumo">
         <span class="tab-icon-wrap" id="tab-icon-resumo">${TAB_ICONS.resumo.outline}</span>
         <span class="tab-label">Resumo</span>
       </button>
@@ -246,9 +246,13 @@ function showCalendar(motion = 'fade') {
   }, motion);
 }
 
-function showDayDetail(dateStr) {
-  return navigate('calendario', (layer) => mountDayDetailView(layer, dateStr, {
-    onBack: () => showCalendar('day-back'),
+function showDayDetail(dateStr, options = {}) {
+  const fromTab = options.fromTab || 'calendario';
+  const onBack =
+    options.onBack ||
+    (() => (fromTab === 'resumo' ? showSummary('day-back') : showCalendar('day-back')));
+  return navigate(fromTab, (layer) => mountDayDetailView(layer, dateStr, {
+    onBack,
     onManageActivities: () => showActivities(),
   }), 'day-forward');
 }
@@ -289,8 +293,25 @@ function showActivities() {
   }), 'fade');
 }
 
-function showSummary() {
-  return navigate('resumo', (layer) => mountSummaryView(layer), 'fade');
+function showSummary(motion = 'fade', options = {}) {
+  return navigate('resumo', (layer) => mountSummaryView(layer, {
+    initialYear: options?.year,
+    initialMonth: options?.month,
+    onDaySelect: (dateStr) => showDayDetail(dateStr, { fromTab: 'resumo' }),
+    onActivitySelect: (activityId, context) => showSummaryActivityDetail(activityId, context),
+  }), motion);
+}
+
+function showSummaryActivityDetail(activityId, context = {}, motion = 'day-forward') {
+  return navigate('resumo', (layer) => mountSummaryActivityView(layer, activityId, {
+    year: context.year,
+    month: context.month,
+    onBack: () => showSummary('day-back', { year: context.year, month: context.month }),
+    onDaySelect: (dateStr) => showDayDetail(dateStr, {
+      fromTab: 'resumo',
+      onBack: () => showSummaryActivityDetail(activityId, context, 'day-back'),
+    }),
+  }), motion);
 }
 
 function showSettings() {

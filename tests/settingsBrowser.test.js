@@ -84,7 +84,7 @@ server.listen(0, '127.0.0.1', async () => {
     );
 
     const resumoTab = tabItems.find((t) => t.tab === 'resumo');
-    assert(resumoTab && resumoTab.hidden, 'A aba Resumo está oculta até a implementação do RF10');
+    assert(resumoTab && !resumoTab.hidden, 'A aba Resumo está visível com a implementação do RF10');
 
     const ajustesTabItem = tabItems.find((t) => t.tab === 'ajustes');
     assert(ajustesTabItem && !ajustesTabItem.hidden, 'A quarta aba "Ajustes" está visível');
