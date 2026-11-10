@@ -326,6 +326,12 @@ function showSummaryActivityDetail(activityId, context = {}, motion = 'day-forwa
       fromTab: 'resumo',
       onBack: () => showSummaryActivityDetail(activityId, context, 'day-back'),
     }),
+    onOpenRecords: (filter) => showRecords(filter, {
+      fromTab: 'resumo',
+      year: context.year,
+      month: context.month,
+      onBack: () => showSummaryActivityDetail(activityId, context, 'day-back'),
+    }),
   }), motion);
 }
 

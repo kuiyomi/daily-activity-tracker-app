@@ -17,6 +17,8 @@ import {
   getActivityNotesForMonth,
   filterByMonth,
   getMonthFilter,
+  getSixMonthRange,
+  computeActiveDaysHistory,
 } from '../src/logic/stats.js';
 
 let passed = 0;
@@ -192,27 +194,33 @@ describe('7. Month boundaries and full monthly computation', () => {
   assertEqual(stats.earliestPendingDate, '2026-11-10', 'Earliest pending date is 2026-11-10');
 });
 
-describe('8. Activity Monthly Stats (done, planned, missed)', () => {
+describe('8. Activity Monthly Stats (done, missed, pending, upcoming)', () => {
   const completions = [
     // Previous month entry
-    { date: '2026-10-31', activityId: 'act_gym', status: 'done' },
+    { date: '2026-10-31', activityId: 'act_gym', status: 'done', wasPlanned: true },
     // Current month entries for act_gym
-    { date: '2026-11-02', activityId: 'act_gym', status: 'done' },
-    { date: '2026-11-04', activityId: 'act_gym', status: 'done' },
-    { date: '2026-11-06', activityId: 'act_gym', status: 'planned', wasPlanned: true },
+    { date: '2026-11-02', activityId: 'act_gym', status: 'done', wasPlanned: true },
+    { date: '2026-11-04', activityId: 'act_gym', status: 'done', wasPlanned: true },
+    { date: '2026-11-06', activityId: 'act_gym', status: 'planned', wasPlanned: true }, // pending (date < 2026-11-07)
     { date: '2026-11-08', activityId: 'act_gym', status: 'missed', wasPlanned: true },
-    // Duplicate date check
-    { date: '2026-11-04', activityId: 'act_gym', status: 'done' },
+    { date: '2026-11-12', activityId: 'act_gym', status: 'planned', wasPlanned: true }, // upcoming (date >= 2026-11-07)
+    // Non-planned done entry (not counted in plan)
+    { date: '2026-11-05', activityId: 'act_gym', status: 'done', wasPlanned: false },
     // Different activity entry in current month
-    { date: '2026-11-02', activityId: 'act_run', status: 'done' },
-    { date: '2026-11-10', activityId: 'act_run', status: 'planned' },
+    { date: '2026-11-02', activityId: 'act_run', status: 'done', wasPlanned: true },
+    { date: '2026-11-10', activityId: 'act_run', status: 'planned', wasPlanned: true },
   ];
 
-  const stats = computeActivityMonthlyStats(completions, 'act_gym', { year: 2026, month: 10 });
-  assertEqual(stats.done, 2, 'Gym has 2 days done in November (02 and 04)');
-  assertEqual(stats.planned, 1, 'Gym has 1 day planned in November (06)');
-  assertEqual(stats.missed, 1, 'Gym has 1 day missed in November (08)');
-  assertEqual(stats.totalPlanned, 2, 'Gym has 2 total wasPlanned days');
+  const stats = computeActivityMonthlyStats(completions, 'act_gym', {
+    year: 2026,
+    month: 10,
+    todayStr: '2026-11-07',
+  });
+  assertEqual(stats.done, 2, 'Gym has 2 planned done in November (02 and 04)');
+  assertEqual(stats.missed, 1, 'Gym has 1 planned missed in November (08)');
+  assertEqual(stats.pending, 1, 'Gym has 1 pending in November (06)');
+  assertEqual(stats.upcoming, 1, 'Gym has 1 upcoming in November (12)');
+  assertEqual(stats.totalPlanned, 5, 'Gym has 5 total wasPlanned entries');
 });
 
 describe('9. Activity Option Stats (groups, descending sort, archived counted, 0-day excluded)', () => {
@@ -390,6 +398,67 @@ describe('12. Impeded options stats for "Por opção" card', () => {
   assert(Boolean(academia), 'Academia found in impeded stats');
   assertEqual(academia.options[0].name, 'Peito', 'Option name is Peito');
   assertEqual(academia.options[0].count, 1, 'Peito has count 1');
+});
+
+describe('13. Six-month range and Active Days History chart data', () => {
+  // Test range calculation across year boundary
+  const rangeCrossYear = getSixMonthRange(2027, 1); // Feb 2027
+  assertEqual(rangeCrossYear.length, 6, 'Range has 6 months');
+  assertEqual(rangeCrossYear[0].monthStr, '2026-09', 'First month is Sep 2026');
+  assertEqual(rangeCrossYear[5].monthStr, '2027-02', 'Last month is Feb 2027');
+
+  const rangeNov = getSixMonthRange(2026, 10); // Nov 2026
+  assertEqual(rangeNov[0].monthStr, '2026-06', 'First month is Jun 2026');
+  assertEqual(rangeNov[5].monthStr, '2026-11', 'Last month is Nov 2026');
+
+  // Completions across the 6 months
+  const completions = [
+    // June: 1 active day
+    { date: '2026-06-15', status: 'done' },
+    // July: 0 active days
+    // August: 2 active days (with multiple completions on one date)
+    { date: '2026-08-01', status: 'done' },
+    { date: '2026-08-01', status: 'done' },
+    { date: '2026-08-10', status: 'done' },
+    { date: '2026-08-10', status: 'missed' },
+    // September: 1 active day, 1 missed (not counted)
+    { date: '2026-09-05', status: 'done' },
+    { date: '2026-09-20', status: 'planned' },
+    // October: 3 active days
+    { date: '2026-10-02', status: 'done' },
+    { date: '2026-10-04', status: 'done' },
+    { date: '2026-10-10', status: 'done' },
+    // November (viewed month): 2 active days
+    { date: '2026-11-02', status: 'done' },
+    { date: '2026-11-04', status: 'done' },
+    // Out of range (December 2026)
+    { date: '2026-12-01', status: 'done' },
+  ];
+
+  const chart = computeActiveDaysHistory(completions, { year: 2026, month: 10 });
+  assertEqual(chart.items.length, 6, 'Chart has 6 items');
+  assertEqual(chart.max, 3, 'Max active days is 3 (October)');
+
+  // Verify each month item
+  assertEqual(chart.items[0].label, 'Jun', 'Item 0 label is Jun');
+  assertEqual(chart.items[0].activeDays, 1, 'Jun has 1 active day');
+  assert(!chart.items[0].isCurrent, 'Jun is not current');
+
+  assertEqual(chart.items[1].label, 'Jul', 'Item 1 label is Jul');
+  assertEqual(chart.items[1].activeDays, 0, 'Jul has 0 active days');
+
+  assertEqual(chart.items[2].label, 'Ago', 'Item 2 label is Ago');
+  assertEqual(chart.items[2].activeDays, 2, 'Ago has 2 active days');
+
+  assertEqual(chart.items[3].label, 'Set', 'Item 3 label is Set');
+  assertEqual(chart.items[3].activeDays, 1, 'Set has 1 active day');
+
+  assertEqual(chart.items[4].label, 'Out', 'Item 4 label is Out');
+  assertEqual(chart.items[4].activeDays, 3, 'Out has 3 active days');
+
+  assertEqual(chart.items[5].label, 'Nov', 'Item 5 label is Nov');
+  assertEqual(chart.items[5].activeDays, 2, 'Nov has 2 active days');
+  assert(chart.items[5].isCurrent, 'Nov is marked as viewed month (isCurrent)');
 });
 
 console.log(`\nResults: ${passed} passed, ${failed} failed`);

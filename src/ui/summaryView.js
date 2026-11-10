@@ -28,6 +28,8 @@ import {
   computeActivityMonthlyStats,
   computeActivityOptionStats,
   getActivityNotesForMonth,
+  getSixMonthRange,
+  computeActiveDaysHistory,
 } from '../logic/stats.js';
 import { ICONS, renderIconGlyph } from './icons.js';
 import '../version.js';
@@ -119,7 +121,42 @@ export async function mountSummaryView(root, options = {}) {
   const bodyEl = root.querySelector('#summary-body');
   const screenContent = root.querySelector('.summary-screen-content');
 
-  function renderSummaryContent(stats, activities) {
+  function renderSummaryContent(stats, activities, chartData) {
+    const chartCardHtml = chartData && Array.isArray(chartData.items) ? `
+      <div class="inset-section" id="summary-section-chart">
+        <div class="inset-section-header">Dias ativos</div>
+        <div class="inset-group summary-chart-card">
+          <div class="summary-chart-cols" role="group" aria-label="Histórico de dias ativos nos últimos 6 meses">
+            ${chartData.items
+              .map((item) => {
+                const pct = chartData.max > 0 ? Math.round((item.activeDays / chartData.max) * 100) : 0;
+                const isCurrent = item.isCurrent;
+                const barHeightStyle = item.activeDays > 0 ? `height: ${Math.max(6, pct)}%;` : 'height: 0%;';
+                return `
+                  <button
+                    type="button"
+                    class="summary-chart-col ${isCurrent ? 'is-current' : ''}"
+                    data-year="${item.year}"
+                    data-month="${item.month}"
+                    aria-label="${escapeHtml(item.label)}: ${item.activeDays} ${item.activeDays === 1 ? 'dia ativo' : 'dias ativos'}${isCurrent ? ' (mês exibido)' : ''}"
+                  >
+                    <span class="summary-chart-val">${item.activeDays}</span>
+                    <div class="summary-chart-bar-wrap">
+                      <div
+                        class="summary-chart-bar ${isCurrent ? 'summary-chart-bar--current' : ''}"
+                        style="${barHeightStyle}"
+                      ></div>
+                    </div>
+                    <span class="summary-chart-label">${escapeHtml(item.label)}</span>
+                  </button>
+                `;
+              })
+              .join('')}
+          </div>
+        </div>
+      </div>
+    ` : '';
+
     const isEmpty =
       stats.activeDays === 0 &&
       stats.rainDays === 0 &&
@@ -130,6 +167,7 @@ export async function mountSummaryView(root, options = {}) {
 
     if (isEmpty) {
       return `
+        ${chartCardHtml}
         <div class="inset-section">
           <div class="inset-group summary-empty-card">
             <p class="summary-empty-text">Sem registros neste mês.</p>
@@ -313,7 +351,7 @@ export async function mountSummaryView(root, options = {}) {
       </div>
     `;
 
-    return tilesHtml + activitiesCardHtml + planningCardHtml + rainCardHtml;
+    return chartCardHtml + tilesHtml + activitiesCardHtml + planningCardHtml + rainCardHtml;
   }
 
   async function render(direction = 0) {
@@ -331,10 +369,12 @@ export async function mountSummaryView(root, options = {}) {
       todayBtn.tabIndex = isCurrentMonthView ? -1 : 0;
     }
 
-    const firstDate = firstDayOfMonth(currentYear, currentMonth);
-    const lastDate = lastDayOfMonth(currentYear, currentMonth);
-    const startDateStr = toDateString(firstDate);
-    const endDateStr = toDateString(lastDate);
+    const sixMonthRange = getSixMonthRange(currentYear, currentMonth);
+    const sixMonthStartDate = firstDayOfMonth(sixMonthRange[0].year, sixMonthRange[0].month);
+    const currentMonthEndDate = lastDayOfMonth(currentYear, currentMonth);
+    const sixMonthStartDateStr = toDateString(sixMonthStartDate);
+    const currentMonthStartDateStr = toDateString(firstDayOfMonth(currentYear, currentMonth));
+    const endDateStr = toDateString(currentMonthEndDate);
 
     let completions = [];
     let dayEntries = [];
@@ -342,8 +382,8 @@ export async function mountSummaryView(root, options = {}) {
 
     try {
       [completions, dayEntries, activities] = await Promise.all([
-        getCompletionsForDateRange(startDateStr, endDateStr),
-        getDayEntriesForDateRange(startDateStr, endDateStr),
+        getCompletionsForDateRange(sixMonthStartDateStr, endDateStr),
+        getDayEntriesForDateRange(currentMonthStartDateStr, endDateStr),
         getActivities(),
       ]);
     } catch (err) {
@@ -356,13 +396,30 @@ export async function mountSummaryView(root, options = {}) {
     bodyEl.className = 'summary-body';
 
     const todayStr = todayString();
+    const chartData = computeActiveDaysHistory(completions, {
+      year: currentYear,
+      month: currentMonth,
+    });
     const stats = computeMonthlyStats(completions, dayEntries, {
       year: currentYear,
       month: currentMonth,
       todayStr,
     });
 
-    bodyEl.innerHTML = renderSummaryContent(stats, activities);
+    bodyEl.innerHTML = renderSummaryContent(stats, activities, chartData);
+
+    // Wire up tapping a chart bar to switch the viewed month
+    bodyEl.querySelectorAll('.summary-chart-col').forEach((col) => {
+      col.addEventListener('click', () => {
+        const y = parseInt(col.dataset.year, 10);
+        const m = parseInt(col.dataset.month, 10);
+        if (y === currentYear && m === currentMonth) return;
+        const dir = y > currentYear || (y === currentYear && m > currentMonth) ? 1 : -1;
+        currentYear = y;
+        currentMonth = m;
+        render(dir);
+      });
+    });
 
     // Wire up planning rows to open Registros
     const doneBtn = bodyEl.querySelector('#plan-row-done');
@@ -559,6 +616,7 @@ export async function mountSummaryView(root, options = {}) {
 export async function mountSummaryActivityView(root, activityId, options = {}) {
   const onBack = typeof options?.onBack === 'function' ? options.onBack : () => {};
   const onDaySelect = typeof options?.onDaySelect === 'function' ? options.onDaySelect : () => {};
+  const onOpenRecords = typeof options?.onOpenRecords === 'function' ? options.onOpenRecords : () => {};
 
   const today = new Date();
   const year = typeof options?.year === 'number' ? options.year : today.getFullYear();
@@ -608,23 +666,67 @@ export async function mountSummaryActivityView(root, activityId, options = {}) {
     return raw.charAt(0).toUpperCase() + raw.slice(1);
   }
 
-  // Card (a): Neste mês
+  // Card (a): Neste mês (same 4 rows as Resumo)
   const cardMonthHtml = `
     <div class="inset-section" id="summary-act-card-month">
       <div class="inset-section-header">Neste mês</div>
       <div class="inset-group">
-        <div class="inset-row inset-row-info">
+        <button
+          type="button"
+          class="inset-row inset-row-info summary-plan-row is-interactive"
+          id="act-plan-row-done"
+          aria-label="Feitas: ${monthStats.done}. Toque para ver registros"
+        >
           <span class="inset-row-info-label">Feitas</span>
-          <span class="inset-row-info-value" id="stat-act-done">${monthStats.done}</span>
-        </div>
-        <div class="inset-row inset-row-info">
-          <span class="inset-row-info-label">Planejadas</span>
-          <span class="inset-row-info-value" id="stat-act-planned">${monthStats.planned}</span>
-        </div>
-        <div class="inset-row inset-row-info">
+          <div class="summary-plan-value-wrap">
+            <span class="inset-row-info-value" id="stat-act-done">${monthStats.done}</span>
+            <svg class="summary-row-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <polyline points="9 18 15 12 9 6"></polyline>
+            </svg>
+          </div>
+        </button>
+        <button
+          type="button"
+          class="inset-row inset-row-info summary-plan-row is-interactive"
+          id="act-plan-row-missed"
+          aria-label="Não feitas: ${monthStats.missed}. Toque para ver registros"
+        >
           <span class="inset-row-info-label">Não feitas</span>
-          <span class="inset-row-info-value" id="stat-act-missed">${monthStats.missed}</span>
-        </div>
+          <div class="summary-plan-value-wrap">
+            <span class="inset-row-info-value" id="stat-act-missed">${monthStats.missed}</span>
+            <svg class="summary-row-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <polyline points="9 18 15 12 9 6"></polyline>
+            </svg>
+          </div>
+        </button>
+        <button
+          type="button"
+          class="inset-row inset-row-info summary-pending-row is-interactive"
+          id="act-plan-row-pending"
+          aria-label="Pendentes: ${monthStats.pending}. Toque para ver registros"
+        >
+          <span class="inset-row-info-label">Pendentes</span>
+          <div class="summary-pending-value-wrap">
+            <span class="inset-row-info-value summary-pending-orange" id="stat-act-pending">${monthStats.pending}</span>
+            <svg class="summary-row-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <polyline points="9 18 15 12 9 6"></polyline>
+            </svg>
+          </div>
+        </button>
+        <button
+          type="button"
+          class="inset-row inset-row-info summary-plan-row is-interactive"
+          id="act-plan-row-upcoming"
+          aria-label="A fazer: ${monthStats.upcoming}. Toque para ver registros"
+        >
+          <span class="inset-row-info-label">A fazer</span>
+          <div class="summary-plan-value-wrap">
+            <span class="inset-row-info-value" id="stat-act-upcoming">${monthStats.upcoming}</span>
+            <svg class="summary-row-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <polyline points="9 18 15 12 9 6"></polyline>
+            </svg>
+          </div>
+        </button>
       </div>
     </div>
   `;
@@ -699,18 +801,23 @@ export async function mountSummaryActivityView(root, activityId, options = {}) {
 
   root.innerHTML = `
     <div class="screen-view summary-activity-screen">
-      <header class="ios-nav-bar ios-nav-bar--pushed">
+      <header class="ios-nav-bar ios-nav-bar--with-back">
         <button type="button" class="ios-back-btn" id="btn-back-activity-summary" aria-label="Voltar para Resumo">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
             <polyline points="15 18 9 12 15 6"></polyline>
           </svg>
           <span>Resumo</span>
         </button>
-        <h1 class="ios-nav-title" id="summary-activity-title">${escapeHtml(activity.name)}</h1>
-        <div style="width: 44px; min-width: 44px;" aria-hidden="true"></div>
       </header>
 
       <main class="screen-content summary-screen-content">
+        <div class="summary-activity-heading-container">
+          <div class="activity-icon-badge activity-icon-badge--sm" style="background-color: ${activity.color || 'var(--ios-blue)'};" aria-hidden="true">
+            ${renderIconGlyph(activity.icon)}
+          </div>
+          <h1 class="day-large-title" id="summary-activity-title">${escapeHtml(activity.name)}</h1>
+        </div>
+
         ${cardMonthHtml}
         ${cardGroupsHtml}
         ${cardNotesHtml}
@@ -721,6 +828,66 @@ export async function mountSummaryActivityView(root, activityId, options = {}) {
   const btnBack = root.querySelector('#btn-back-activity-summary');
   if (btnBack) {
     btnBack.addEventListener('click', () => onBack());
+  }
+
+  const actDoneBtn = root.querySelector('#act-plan-row-done');
+  if (actDoneBtn) {
+    actDoneBtn.addEventListener('click', () => {
+      onOpenRecords({
+        status: 'done',
+        period: 'month',
+        year,
+        month,
+        activityId,
+        wasPlanned: true,
+        title: 'Feitas',
+      });
+    });
+  }
+
+  const actMissedBtn = root.querySelector('#act-plan-row-missed');
+  if (actMissedBtn) {
+    actMissedBtn.addEventListener('click', () => {
+      onOpenRecords({
+        status: 'missed',
+        period: 'month',
+        year,
+        month,
+        activityId,
+        wasPlanned: true,
+        title: 'Não feitas',
+      });
+    });
+  }
+
+  const actPendingBtn = root.querySelector('#act-plan-row-pending');
+  if (actPendingBtn) {
+    actPendingBtn.addEventListener('click', () => {
+      onOpenRecords({
+        pending: true,
+        period: 'month',
+        year,
+        month,
+        activityId,
+        wasPlanned: true,
+        title: 'Pendentes',
+      });
+    });
+  }
+
+  const actUpcomingBtn = root.querySelector('#act-plan-row-upcoming');
+  if (actUpcomingBtn) {
+    actUpcomingBtn.addEventListener('click', () => {
+      onOpenRecords({
+        upcoming: true,
+        period: 'month',
+        year,
+        month,
+        activityId,
+        wasPlanned: true,
+        title: 'A fazer',
+      });
+    });
   }
 
   root.querySelectorAll('.summary-note-row').forEach((btn) => {

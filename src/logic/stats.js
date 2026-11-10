@@ -355,15 +355,16 @@ export function computeImpededOptionsStats(completions = [], activities = [], op
 }
 
 /**
- * Computes monthly counts for a specific activity:
- * - done: distinct days with status 'done' (or missing legacy status)
- * - planned: distinct days with status 'planned'
- * - missed: distinct days with status 'missed'
+ * Computes monthly counts for a specific activity using the same planning definitions as Resumo:
+ * - done: wasPlanned entries with status 'done'
+ * - missed: wasPlanned entries with status 'missed'
+ * - pending: wasPlanned entries with status 'planned' and date < today
+ * - upcoming: wasPlanned entries with status 'planned' and date >= today
  *
  * @param {Array<object>} completions
  * @param {string} activityId
- * @param {{ year?: number, month?: number, monthStr?: string }} [options]
- * @returns {{ done: number, planned: number, missed: number, totalPlanned: number }}
+ * @param {{ year?: number, month?: number, monthStr?: string, todayStr?: string }} [options]
+ * @returns {{ done: number, missed: number, pending: number, upcoming: number, planned: number, totalPlanned: number }}
  */
 export function computeActivityMonthlyStats(completions = [], activityId, options = {}) {
   const monthFilter = getMonthFilter(options);
@@ -371,35 +372,92 @@ export function computeActivityMonthlyStats(completions = [], activityId, option
   if (activityId) {
     filtered = filtered.filter((c) => c?.activityId === activityId);
   }
+  const todayStr = options.todayStr || todayString();
+  const plan = computePlanStats(filtered, todayStr);
 
-  const doneDates = new Set();
-  const plannedDates = new Set();
-  const missedDates = new Set();
-  const totalPlannedDates = new Set();
+  return {
+    done: plan.done,
+    missed: plan.missed,
+    pending: plan.pending,
+    upcoming: plan.upcoming,
+    planned: plan.pending + plan.upcoming,
+    totalPlanned: plan.done + plan.missed + plan.pending + plan.upcoming,
+  };
+}
 
-  for (const c of filtered) {
-    if (!c || typeof c.date !== 'string') continue;
-    const status = c.status || 'done';
-
-    if (status === 'done') {
-      doneDates.add(c.date);
-    } else if (status === 'planned') {
-      plannedDates.add(c.date);
-    } else if (status === 'missed') {
-      missedDates.add(c.date);
+/**
+ * Computes an array of the 6 consecutive months ending at { year, month } (inclusive).
+ * Months are 0-based.
+ *
+ * @param {number} year
+ * @param {number} month – 0-based (0 = Jan, 11 = Dec)
+ * @returns {Array<{ year: number, month: number, monthStr: string }>}
+ */
+export function getSixMonthRange(year, month) {
+  const months = [];
+  for (let offset = 5; offset >= 0; offset--) {
+    let y = year;
+    let m = month - offset;
+    while (m < 0) {
+      m += 12;
+      y -= 1;
     }
+    const monthStr = `${y}-${String(m + 1).padStart(2, '0')}`;
+    months.push({ year: y, month: m, monthStr });
+  }
+  return months;
+}
 
-    if (Boolean(c.wasPlanned)) {
-      totalPlannedDates.add(c.date);
+/**
+ * Computes active days for the 6 months ending at { year, month }.
+ * For each month, counts distinct dates where at least one completion has status 'done' (or default 'done').
+ *
+ * @param {Array<{ date: string, status?: string }>} completions
+ * @param {{ year: number, month: number }} options
+ * @returns {{
+ *   items: Array<{
+ *     year: number,
+ *     month: number,
+ *     monthStr: string,
+ *     label: string,
+ *     activeDays: number,
+ *     isCurrent: boolean
+ *   }>,
+ *   max: number
+ * }}
+ */
+export function computeActiveDaysHistory(completions = [], { year, month }) {
+  const range = getSixMonthRange(year, month);
+  const MONTH_ABBRS = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+
+  const activeDates = new Set();
+  for (const c of completions) {
+    if (!c || typeof c.date !== 'string') continue;
+    if ((c.status || 'done') === 'done') {
+      activeDates.add(c.date);
     }
   }
 
-  return {
-    done: doneDates.size,
-    planned: plannedDates.size,
-    missed: missedDates.size,
-    totalPlanned: totalPlannedDates.size,
-  };
+  const items = range.map(({ year: y, month: m, monthStr }) => {
+    let count = 0;
+    for (const d of activeDates) {
+      if (d.startsWith(monthStr)) {
+        count++;
+      }
+    }
+    return {
+      year: y,
+      month: m,
+      monthStr,
+      label: MONTH_ABBRS[m] || '',
+      activeDays: count,
+      isCurrent: y === year && m === month,
+    };
+  });
+
+  const max = Math.max(...items.map((it) => it.activeDays), 0);
+
+  return { items, max };
 }
 
 /**

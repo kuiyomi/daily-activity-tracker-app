@@ -142,13 +142,15 @@ export async function mountRecordsView(root, options = {}) {
     const todayStr = todayString();
 
     // Determine range to fetch
-    const isPeriodMonth = filter.period === 'month' || (filter.year !== undefined && filter.month !== undefined && !isPending && filter.period !== 'all');
+    const isPeriodMonth = filter.period === 'month' || (filter.year !== undefined && filter.month !== undefined && filter.period !== 'all');
 
-    if (isPeriodMonth && !isPending) {
+    let startDateStr = '';
+    let endDateStr = '';
+    if (isPeriodMonth) {
       const year = filter.year !== undefined ? filter.year : new Date().getFullYear();
       const month = filter.month !== undefined ? filter.month : new Date().getMonth();
-      const startDateStr = toDateString(firstDayOfMonth(year, month));
-      const endDateStr = toDateString(lastDayOfMonth(year, month));
+      startDateStr = toDateString(firstDayOfMonth(year, month));
+      endDateStr = toDateString(lastDayOfMonth(year, month));
       [rawCompletions, activities] = await Promise.all([
         getCompletionsForDateRange(startDateStr, endDateStr),
         getActivities(),
@@ -173,8 +175,12 @@ export async function mountRecordsView(root, options = {}) {
         return false;
       }
 
+      if (isPeriodMonth && (c.date < startDateStr || c.date > endDateStr)) {
+        return false;
+      }
+
       if (isPending) {
-        // Pending: ALL past pending entries, wasPlanned entries with status 'planned' (or no status)
+        // Pending: past pending entries, wasPlanned entries with status 'planned' (or no status)
         return c.date < todayStr && (c.status === 'planned' || !c.status) && Boolean(c.wasPlanned);
       }
 

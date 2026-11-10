@@ -163,6 +163,15 @@ server.listen(0, '127.0.0.1', async () => {
           wasPlanned: true,
         });
 
+        // 6. Completion in previous month (October 2026) for chart testing
+        compStore.put({
+          id: '2026-10-15:act_musculacao',
+          date: '2026-10-15',
+          activityId: 'act_musculacao',
+          status: 'done',
+          wasPlanned: false,
+        });
+
         const dayStore = tx.objectStore('dayEntries');
         // Rainy day 1 (coincides with missed planned activity on 2026-11-06)
         dayStore.put({
@@ -202,7 +211,45 @@ server.listen(0, '127.0.0.1', async () => {
     const monthTitle = await page.$eval('#summary-cal-title', (el) => el.textContent.trim());
     assert(monthTitle.toLowerCase().includes('novembro'), `Título do mês exibe Novembro (obtido: ${monthTitle})`);
 
-    console.log('\n--- 2. Asserção dos números nos três blocos de estatísticas (Card a) ---');
+    console.log('\n--- 1.1 Card do gráfico "Dias ativos" no topo com valores semeados ---');
+    await page.waitForSelector('#summary-section-chart');
+    const chartHeader = await page.$eval('#summary-section-chart .inset-section-header', (el) => el.textContent.trim());
+    assertEqual(chartHeader, 'Dias ativos', 'Título da seção do gráfico é "Dias ativos"');
+
+    // 6 colunas presentes
+    const chartCols = await page.$$('#summary-section-chart .summary-chart-col');
+    assertEqual(chartCols.length, 6, 'Gráfico exibe 6 colunas para os 6 meses');
+
+    // Valores semeados: Outubro tem 1, Novembro tem 2, outros têm 0
+    const colLabels = await page.$$eval('#summary-section-chart .summary-chart-label', (els) => els.map((e) => e.textContent.trim()));
+    const colVals = await page.$$eval('#summary-section-chart .summary-chart-val', (els) => els.map((e) => e.textContent.trim()));
+    assertEqual(colLabels[4], 'Out', '5º mês é Out');
+    assertEqual(colVals[4], '1', 'Outubro exibe 1 dia ativo semeado');
+    assertEqual(colLabels[5], 'Nov', '6º mês é Nov');
+    assertEqual(colVals[5], '2', 'Novembro exibe 2 dias ativos semeados');
+
+    const isNovCurrent = await chartCols[5].evaluate((el) => el.classList.contains('is-current'));
+    assert(isNovCurrent, 'Mês exibido (Novembro) está destacado com classe is-current');
+
+    // Tocar na barra de Outubro troca o mês exibido
+    console.log('\n--- 1.2 Tocar em uma barra do gráfico troca o mês exibido ---');
+    await chartCols[4].click();
+    await page.waitForFunction(() => {
+      const title = document.querySelector('#summary-cal-title')?.textContent || '';
+      return title.toLowerCase().includes('outubro');
+    });
+    assert(true, 'Tocar na barra de Outubro mudou a visualização para Outubro');
+
+    // Tocar no botão próximo mês restaura Novembro
+    await page.click('#summary-btn-next');
+    await page.waitForFunction(() => {
+      const title = document.querySelector('#summary-cal-title')?.textContent || '';
+      return title.toLowerCase().includes('novembro');
+    });
+    await page.waitForFunction(() => !document.querySelector('.is-animating'));
+    assert(true, 'Botão próximo mês restaurou a visualização para Novembro');
+
+    console.log('\n--- 2. Asserção dos números nos três blocos de estatísticas (Card a) e alinhamento ---');
     await page.waitForSelector('#stat-active-days');
     const activeDays = await page.$eval('#stat-active-days', (el) => el.textContent.trim());
     assertEqual(activeDays, '2', 'Dias ativos são 2 (02/11 e 04/11)');
@@ -212,6 +259,12 @@ server.listen(0, '127.0.0.1', async () => {
 
     const adherence = await page.$eval('#stat-adherence', (el) => el.textContent.trim());
     assertEqual(adherence, '50%', 'Plano cumprido é 50% (1 feita / (1 feita + 1 não feita))');
+
+    // Alinhamento dos blocos: todos os três números no mesmo topo / baseline
+    const tileTops = await page.$$eval('.summary-stat-value', (els) => els.map((el) => Math.round(el.getBoundingClientRect().top)));
+    assertEqual(tileTops.length, 3, 'Três blocos de estatísticas presentes');
+    assertEqual(tileTops[0], tileTops[1], 'Número 1 e 2 estão no mesmo topo (linha de base única)');
+    assertEqual(tileTops[1], tileTops[2], 'Número 2 e 3 estão no mesmo topo (linha de base única)');
 
     console.log('\n--- 3. Asserção da lista "Por atividade" (Card b) ---');
     const actRow = await page.waitForSelector('.summary-activity-row[data-activity-id="act_musculacao"]');

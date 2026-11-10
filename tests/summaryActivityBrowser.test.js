@@ -144,7 +144,7 @@ server.listen(0, '127.0.0.1', async () => {
           date: '2026-11-02',
           activityId: 'act_musculacao',
           status: 'done',
-          wasPlanned: false,
+          wasPlanned: true,
           optionIds: ['opt_peito', 'opt_costas'],
           note: 'Treino de costas e peito excelente',
         });
@@ -198,6 +198,9 @@ server.listen(0, '127.0.0.1', async () => {
     const title = await page.$eval('.view-layer--current #summary-activity-title', (el) => el.textContent.trim());
     assertEqual(title, 'Musculação', 'Título da tela empurrada é "Musculação"');
 
+    const badge = await page.$('.view-layer--current .summary-activity-heading-container .activity-icon-badge--sm');
+    assert(badge, 'Pequeno badge com ícone está ao lado do título grande da atividade');
+
     // Tab bar deve permanecer visível
     const isTabBarVisible = await page.$eval('.ios-tab-bar', (el) => !el.classList.contains('hidden'));
     assert(isTabBarVisible, 'Aba inferior (tab bar) permanece visível');
@@ -206,15 +209,37 @@ server.listen(0, '127.0.0.1', async () => {
     const backBtn = await page.waitForSelector('.view-layer--current #btn-back-activity-summary');
     assert(backBtn, 'Botão de voltar com chevron está presente');
 
-    console.log('\n--- 3. Card (a) "Neste mês": Feitas, Planejadas, Não feitas ---');
+    console.log('\n--- 3. Card (a) "Neste mês": Feitas, Não feitas, Pendentes, A fazer (sem Planejadas) ---');
     const doneVal = await page.$eval('.view-layer--current #stat-act-done', (el) => el.textContent.trim());
     assertEqual(doneVal, '2', 'Feitas: 2 (dias 02 e 06)');
 
-    const plannedVal = await page.$eval('.view-layer--current #stat-act-planned', (el) => el.textContent.trim());
-    assertEqual(plannedVal, '1', 'Planejadas: 1 (dia 10)');
-
     const missedVal = await page.$eval('.view-layer--current #stat-act-missed', (el) => el.textContent.trim());
     assertEqual(missedVal, '1', 'Não feitas: 1 (dia 12)');
+
+    const pendingVal = await page.$eval('.view-layer--current #stat-act-pending', (el) => el.textContent.trim());
+    assertEqual(pendingVal, '1', 'Pendentes: 1 (dia 10)');
+
+    const upcomingVal = await page.$eval('.view-layer--current #stat-act-upcoming', (el) => el.textContent.trim());
+    assertEqual(upcomingVal, '0', 'A fazer: 0');
+
+    const plannedEl = await page.$('.view-layer--current #stat-act-planned');
+    assert(!plannedEl, '"Planejadas" foi removido conforme especificação');
+
+    // Testar que linha Feitas abre a tela de Registros filtrada por atividade e mês
+    const doneRowBtn = await page.$('.view-layer--current #act-plan-row-done');
+    assert(doneRowBtn, 'Linha Feitas é interativa');
+    await doneRowBtn.click();
+
+    await page.waitForSelector('.records-screen');
+    const recTitle = await page.$eval('#records-screen-title', (el) => el.textContent.trim());
+    assertEqual(recTitle, 'Feitas', 'Abriu Registros com título "Feitas"');
+    const recCount = await page.$eval('.records-header-count', (el) => el.textContent.trim());
+    assertEqual(recCount, '2 registros', 'Registros exibe 2 registros para Musculação no mês');
+
+    const recBackBtn = await page.waitForSelector('#btn-back-records');
+    await recBackBtn.click();
+    await page.waitForFunction(() => !document.querySelector('.is-animating') && Boolean(document.querySelector('.view-layer--current .summary-activity-screen')));
+    assert(true, 'Voltou para a tela de atividade');
 
     console.log('\n--- 4. Card (b) Grupos de detalhe: nome do grupo, opções com dias e barra fina descrescente ---');
     const groupCard = await page.waitForSelector('.view-layer--current .summary-group-card[data-group-id="grp_muscles"]');
