@@ -405,10 +405,12 @@ export function sanitizeNote(note) {
 export function normalizeCompletionRecord(record) {
   if (!record) return null;
   const rawNote = typeof record.note === 'string' ? record.note : '';
+  const status = record.status || 'done';
   return {
     ...record,
-    status: record.status || 'done',
+    status,
     wasPlanned: Boolean(record.wasPlanned),
+    blockedByRain: status === 'missed' ? Boolean(record.blockedByRain) : false,
     optionIds: Array.isArray(record.optionIds)
       ? record.optionIds
       : Array.isArray(record.muscleGroupIds)
@@ -488,6 +490,7 @@ export function plannedToDone(entry, todayStr = todayString()) {
     ...normalized,
     status: 'done',
     wasPlanned: true,
+    blockedByRain: false,
     completedAt: normalized.completedAt || Date.now(),
   };
 }
@@ -498,9 +501,10 @@ export function plannedToDone(entry, todayStr = todayString()) {
  *
  * @param {object} entry
  * @param {string} [todayStr]
+ * @param {{ blockedByRain?: boolean } | boolean} [params]
  * @returns {object} The updated missed completion record (wasPlanned: true)
  */
-export function plannedToMissed(entry, todayStr = todayString()) {
+export function plannedToMissed(entry, todayStr = todayString(), params = {}) {
   if (!entry) throw new Error('Entrada não encontrada');
   const normalized = normalizeCompletionRecord(entry);
   if (normalized.status !== 'planned') {
@@ -509,10 +513,15 @@ export function plannedToMissed(entry, todayStr = todayString()) {
   if (normalized.date > todayStr) {
     throw new Error('Não é permitido marcar como não feita em datas futuras');
   }
+  const blockedByRain = typeof params === 'object' && params !== null
+    ? Boolean(params.blockedByRain)
+    : (typeof params === 'boolean' ? params : false);
+
   return {
     ...normalized,
     status: 'missed',
     wasPlanned: true,
+    blockedByRain,
   };
 }
 
@@ -537,6 +546,7 @@ export function resolvedToPlanned(entry, todayStr = todayString()) {
     ...normalized,
     status: 'planned',
     wasPlanned: true,
+    blockedByRain: false,
   };
 }
 

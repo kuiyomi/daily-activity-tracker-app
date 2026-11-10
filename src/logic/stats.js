@@ -242,6 +242,7 @@ export function computeMonthlyStats(completionsOrParams, dayEntriesArg, optionsA
   };
   const adherence = computeAdherence(plan.done, plan.missed);
   const missedOnRainDays = computeMissedOnRainDays(completions, dayEntries);
+  const blockedByRainCount = computeBlockedByRainCount(completions);
 
   return {
     activeDays,
@@ -250,8 +251,107 @@ export function computeMonthlyStats(completionsOrParams, dayEntriesArg, optionsA
     plan,
     adherence,
     missedOnRainDays,
+    blockedByRainCount,
     earliestPendingDate: planStats.earliestPendingDate,
   };
+}
+
+/**
+ * Computes the number of missed entries flagged with blockedByRain in a month.
+ *
+ * @param {Array<{ status?: string, blockedByRain?: boolean, date?: string }>} completions
+ * @param {{ year?: number, month?: number, monthStr?: string }} [options]
+ * @returns {number}
+ */
+export function computeBlockedByRainCount(completions = [], options = {}) {
+  const monthFilter = getMonthFilter(options);
+  const filtered = filterByMonth(completions, monthFilter);
+  let count = 0;
+  for (const c of filtered) {
+    if (c?.status === 'missed' && Boolean(c?.blockedByRain)) {
+      count++;
+    }
+  }
+  return count;
+}
+
+/**
+ * Computes impeded entries stats grouped by activity and option for the "Por opção" card.
+ * Lists each activity that has impeded entries, and its options with the number of impeded entries.
+ *
+ * @param {Array<object>} completions
+ * @param {Array<object>} [activities]
+ * @param {{ year?: number, month?: number, monthStr?: string }} [options]
+ * @returns {Array<{
+ *   activityId: string,
+ *   activityName: string,
+ *   color: string,
+ *   icon: string,
+ *   options: Array<{ id: string, name: string, count: number }>
+ * }>}
+ */
+export function computeImpededOptionsStats(completions = [], activities = [], options = {}) {
+  const monthFilter = getMonthFilter(options);
+  const filtered = filterByMonth(completions, monthFilter);
+  const impeded = filtered.filter((c) => c?.status === 'missed' && Boolean(c?.blockedByRain));
+
+  const actMap = new Map((activities || []).map((a) => [a.id, a]));
+  const actOptCounts = new Map(); // actId -> Map(optId -> count)
+
+  for (const comp of impeded) {
+    if (!comp?.activityId) continue;
+    const optIds = Array.isArray(comp.optionIds)
+      ? comp.optionIds
+      : Array.isArray(comp.muscleGroupIds)
+      ? comp.muscleGroupIds
+      : [];
+
+    if (!actOptCounts.has(comp.activityId)) {
+      actOptCounts.set(comp.activityId, new Map());
+    }
+    const optCounts = actOptCounts.get(comp.activityId);
+
+    for (const optId of optIds) {
+      optCounts.set(optId, (optCounts.get(optId) || 0) + 1);
+    }
+  }
+
+  const result = [];
+  for (const [actId, optCounts] of actOptCounts.entries()) {
+    const act = actMap.get(actId) || { id: actId, name: actId, color: '#007aff', icon: 'barbell' };
+    const optionsList = [];
+
+    const allGroupOptions = new Map();
+    for (const group of (act.groups || [])) {
+      for (const opt of (group.options || [])) {
+        allGroupOptions.set(opt.id, opt.name);
+      }
+    }
+
+    for (const [optId, count] of optCounts.entries()) {
+      if (count > 0) {
+        optionsList.push({
+          id: optId,
+          name: allGroupOptions.get(optId) || optId,
+          count,
+        });
+      }
+    }
+
+    if (optionsList.length > 0) {
+      optionsList.sort((a, b) => b.count - a.count || a.name.localeCompare(b.name));
+      result.push({
+        activityId: act.id,
+        activityName: act.name,
+        color: act.color || '#007aff',
+        icon: act.icon || 'barbell',
+        options: optionsList,
+      });
+    }
+  }
+
+  result.sort((a, b) => a.activityName.localeCompare(b.activityName));
+  return result;
 }
 
 /**

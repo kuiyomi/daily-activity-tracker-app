@@ -239,20 +239,20 @@ server.listen(0, '127.0.0.1', async () => {
     const planUpcoming = await page.$eval('#stat-plan-upcoming', (el) => el.textContent.trim());
     assertEqual(planUpcoming, '1', 'A fazer: 1');
 
-    const missedRain = await page.$eval('#stat-missed-rain', (el) => el.textContent.trim());
-    assertEqual(missedRain, '1', 'Não feitas em dias de chuva: 1');
+    const rainDaysCount = await page.$eval('#stat-rain-days-count', (el) => el.textContent.trim());
+    assertEqual(rainDaysCount, '2', 'Dias de chuva no card Chuva: 2');
 
-    console.log('\n--- 5. Toque na linha de Pendentes abre a tela do dia pendente mais antigo ---');
+    console.log('\n--- 5. Toque na linha de Pendentes abre a tela Registros com o filtro Pendentes ---');
     const pendingButton = await page.$('#plan-row-pending');
     assert(pendingButton, 'Botão/linha de Pendentes é interativo');
     await pendingButton.click();
 
-    await page.waitForSelector('.day-detail-screen');
-    const dayHeading = await page.$eval('.day-large-title', (el) => el.textContent.trim());
-    assert(dayHeading.includes('8') && dayHeading.toLowerCase().includes('novembro'), `Abriu a tela do dia pendente 2026-11-08 (obtido: ${dayHeading})`);
+    await page.waitForSelector('.records-screen');
+    const recordsTitle = await page.$eval('#records-screen-title', (el) => el.textContent.trim());
+    assertEqual(recordsTitle, 'Pendentes', 'Abriu a tela Registros com título Pendentes');
 
     // Voltar para Resumo
-    const backBtn = await page.waitForSelector('#btn-back');
+    const backBtn = await page.waitForSelector('#btn-back-records');
     await backBtn.click();
     await page.waitForFunction(() => !document.querySelector('.is-animating') && Boolean(document.querySelector('.view-layer--current .summary-screen')));
     assert(true, 'Botão Voltar retornou com sucesso para a tela de Resumo');

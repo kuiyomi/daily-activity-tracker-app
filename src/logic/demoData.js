@@ -154,6 +154,7 @@ export function generateDemoData(todayArg) {
       let status = 'done';
       let wasPlanned = true;
       let note = '';
+      let blockedByRain = false;
 
       if (isFuture) {
         status = 'planned';
@@ -167,6 +168,8 @@ export function generateDemoData(todayArg) {
         if (offset === -4 || offset === -18) {
           status = 'missed';
           wasPlanned = true;
+          // offset -4 is a rainy day
+          blockedByRain = offset === -4;
         } else if (offset === -2 || offset === -10) {
           // Planned entry still pending on past day
           status = 'planned';
@@ -186,6 +189,7 @@ export function generateDemoData(todayArg) {
         activityId: 'act_academia',
         status,
         wasPlanned,
+        blockedByRain,
         optionIds: [...optionIds],
         note,
         demo: true,
@@ -198,6 +202,7 @@ export function generateDemoData(todayArg) {
       const localOpt = Math.abs(offset) % 6 === 0 ? 'opt_parque' : 'opt_esteira';
       let status = 'done';
       let wasPlanned = true;
+      let blockedByRain = false;
 
       if (isFuture) {
         status = 'planned';
@@ -209,6 +214,8 @@ export function generateDemoData(todayArg) {
         if (offset === -6 || offset === -24) {
           status = 'missed';
           wasPlanned = true;
+          // offset -24 is a rainy day
+          blockedByRain = offset === -24;
         } else if (offset === -3) {
           // Pending planned entry
           status = 'planned';
@@ -225,6 +232,7 @@ export function generateDemoData(todayArg) {
         activityId: 'demo_caminhada',
         status,
         wasPlanned,
+        blockedByRain,
         optionIds: [localOpt],
         note: '',
         demo: true,
@@ -259,6 +267,7 @@ export function generateDemoData(todayArg) {
         activityId: 'demo_natacao',
         status,
         wasPlanned,
+        blockedByRain: false,
         optionIds: [],
         note: '',
         demo: true,
@@ -303,6 +312,7 @@ export function generateDemoData(todayArg) {
         activityId: 'demo_faculdade',
         status,
         wasPlanned,
+        blockedByRain: false,
         optionIds: [],
         note,
         demo: true,

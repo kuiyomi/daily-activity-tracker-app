@@ -53,6 +53,7 @@ function escapeHtml(str) {
 export async function mountSummaryView(root, options = {}) {
   const onDaySelect = typeof options?.onDaySelect === 'function' ? options.onDaySelect : () => {};
   const onActivitySelect = typeof options?.onActivitySelect === 'function' ? options.onActivitySelect : () => {};
+  const onOpenRecords = typeof options?.onOpenRecords === 'function' ? options.onOpenRecords : () => {};
 
   const today = new Date();
   let currentYear = typeof options?.initialYear === 'number' ? options.initialYear : today.getFullYear();
@@ -221,65 +222,98 @@ export async function mountSummaryView(root, options = {}) {
     }
 
     // Card (c): Planejamento
-    const pendingHtml =
-      stats.plan.pending > 0 && stats.earliestPendingDate
-        ? `
+    const planningCardHtml = `
+      <div class="inset-section">
+        <div class="inset-section-header">Planejamento</div>
+        <div class="inset-group summary-planning-group">
           <button
             type="button"
-            class="inset-row inset-row-info summary-pending-row is-interactive"
-            id="plan-row-pending"
-            data-date="${stats.earliestPendingDate}"
-            aria-label="Pendentes: ${stats.plan.pending}. Toque para abrir o dia pendente mais antigo"
+            class="inset-row inset-row-info summary-plan-row is-interactive"
+            id="plan-row-done"
+            aria-label="Feitas: ${stats.plan.done}. Toque para ver registros"
           >
-            <span class="inset-row-info-label">Pendentes</span>
-            <div class="summary-pending-value-wrap">
-              <span class="inset-row-info-value summary-pending-orange">${stats.plan.pending}</span>
+            <span class="inset-row-info-label">Feitas</span>
+            <div class="summary-plan-value-wrap">
+              <span class="inset-row-info-value" id="stat-plan-done">${stats.plan.done}</span>
               <svg class="summary-row-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                 <polyline points="9 18 15 12 9 6"></polyline>
               </svg>
             </div>
           </button>
-        `
-        : `
-          <div class="inset-row inset-row-info summary-pending-row">
-            <span class="inset-row-info-label">Pendentes</span>
-            <span class="inset-row-info-value summary-pending-orange">${stats.plan.pending}</span>
-          </div>
-        `;
-
-    const missedOnRainHtml =
-      stats.missedOnRainDays > 0
-        ? `
-          <div class="inset-row inset-row-info" id="plan-row-missed-rain">
-            <span class="inset-row-info-label">Não feitas em dias de chuva</span>
-            <span class="inset-row-info-value" id="stat-missed-rain">${stats.missedOnRainDays}</span>
-          </div>
-        `
-        : '';
-
-    const planningCardHtml = `
-      <div class="inset-section">
-        <div class="inset-section-header">Planejamento</div>
-        <div class="inset-group summary-planning-group">
-          <div class="inset-row inset-row-info">
-            <span class="inset-row-info-label">Feitas</span>
-            <span class="inset-row-info-value" id="stat-plan-done">${stats.plan.done}</span>
-          </div>
-          <div class="inset-row inset-row-info">
+          <button
+            type="button"
+            class="inset-row inset-row-info summary-plan-row is-interactive"
+            id="plan-row-missed"
+            aria-label="Não feitas: ${stats.plan.missed}. Toque para ver registros"
+          >
             <span class="inset-row-info-label">Não feitas</span>
-            <span class="inset-row-info-value" id="stat-plan-missed">${stats.plan.missed}</span>
-          </div>
-          ${pendingHtml}
-          <div class="inset-row inset-row-info">
+            <div class="summary-plan-value-wrap">
+              <span class="inset-row-info-value" id="stat-plan-missed">${stats.plan.missed}</span>
+              <svg class="summary-row-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <polyline points="9 18 15 12 9 6"></polyline>
+              </svg>
+            </div>
+          </button>
+          <button
+            type="button"
+            class="inset-row inset-row-info summary-pending-row is-interactive"
+            id="plan-row-pending"
+            aria-label="Pendentes: ${stats.plan.pending}. Toque para ver registros"
+          >
+            <span class="inset-row-info-label">Pendentes</span>
+            <div class="summary-pending-value-wrap">
+              <span class="inset-row-info-value summary-pending-orange" id="stat-plan-pending">${stats.plan.pending}</span>
+              <svg class="summary-row-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <polyline points="9 18 15 12 9 6"></polyline>
+              </svg>
+            </div>
+          </button>
+          <button
+            type="button"
+            class="inset-row inset-row-info summary-plan-row is-interactive"
+            id="plan-row-upcoming"
+            aria-label="A fazer: ${stats.plan.upcoming}. Toque para ver registros"
+          >
             <span class="inset-row-info-label">A fazer</span>
-            <span class="inset-row-info-value" id="stat-plan-upcoming">${stats.plan.upcoming}</span>
-          </div>
-          ${missedOnRainHtml}
+            <div class="summary-plan-value-wrap">
+              <span class="inset-row-info-value" id="stat-plan-upcoming">${stats.plan.upcoming}</span>
+              <svg class="summary-row-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <polyline points="9 18 15 12 9 6"></polyline>
+              </svg>
+            </div>
+          </button>
         </div>
       </div>
     `;
 
-    return tilesHtml + activitiesCardHtml + planningCardHtml;
+    // Card (d): Chuva
+    const rainCardHtml = `
+      <div class="inset-section" id="summary-section-rain">
+        <div class="inset-section-header">Chuva</div>
+        <div class="inset-group summary-rain-group">
+          <div class="inset-row inset-row-info" id="rain-row-days">
+            <span class="inset-row-info-label">Dias de chuva</span>
+            <span class="inset-row-info-value" id="stat-rain-days-count">${stats.rainDays}</span>
+          </div>
+          <button
+            type="button"
+            class="inset-row inset-row-info summary-plan-row is-interactive"
+            id="rain-row-blocked"
+            aria-label="Atividades impedidas: ${stats.blockedByRainCount || 0}. Toque para ver registros"
+          >
+            <span class="inset-row-info-label">Atividades impedidas</span>
+            <div class="summary-plan-value-wrap">
+              <span class="inset-row-info-value" id="stat-blocked-rain-count">${stats.blockedByRainCount || 0}</span>
+              <svg class="summary-row-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <polyline points="9 18 15 12 9 6"></polyline>
+              </svg>
+            </div>
+          </button>
+        </div>
+      </div>
+    `;
+
+    return tilesHtml + activitiesCardHtml + planningCardHtml + rainCardHtml;
   }
 
   async function render(direction = 0) {
@@ -330,12 +364,69 @@ export async function mountSummaryView(root, options = {}) {
 
     bodyEl.innerHTML = renderSummaryContent(stats, activities);
 
-    // Wire up pending button click if interactive
+    // Wire up planning rows to open Registros
+    const doneBtn = bodyEl.querySelector('#plan-row-done');
+    if (doneBtn) {
+      doneBtn.addEventListener('click', () => {
+        onOpenRecords({
+          status: 'done',
+          period: 'month',
+          year: currentYear,
+          month: currentMonth,
+          wasPlanned: true,
+          title: 'Feitas',
+        });
+      });
+    }
+
+    const missedBtn = bodyEl.querySelector('#plan-row-missed');
+    if (missedBtn) {
+      missedBtn.addEventListener('click', () => {
+        onOpenRecords({
+          status: 'missed',
+          period: 'month',
+          year: currentYear,
+          month: currentMonth,
+          wasPlanned: true,
+          title: 'Não feitas',
+        });
+      });
+    }
+
     const pendingBtn = bodyEl.querySelector('#plan-row-pending');
     if (pendingBtn) {
       pendingBtn.addEventListener('click', () => {
-        const dateStr = pendingBtn.dataset.date;
-        if (dateStr) onDaySelect(dateStr);
+        onOpenRecords({
+          pending: true,
+          period: 'all',
+          title: 'Pendentes',
+        });
+      });
+    }
+
+    const upcomingBtn = bodyEl.querySelector('#plan-row-upcoming');
+    if (upcomingBtn) {
+      upcomingBtn.addEventListener('click', () => {
+        onOpenRecords({
+          upcoming: true,
+          period: 'month',
+          year: currentYear,
+          month: currentMonth,
+          title: 'A fazer',
+        });
+      });
+    }
+
+    const rainBlockedBtn = bodyEl.querySelector('#rain-row-blocked');
+    if (rainBlockedBtn) {
+      rainBlockedBtn.addEventListener('click', () => {
+        onOpenRecords({
+          blockedByRain: true,
+          period: 'month',
+          year: currentYear,
+          month: currentMonth,
+          title: 'Atividades impedidas',
+        });
       });
     }
 

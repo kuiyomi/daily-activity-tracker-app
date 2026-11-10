@@ -337,6 +337,7 @@ export async function getCompletionsWithDetailsForDate(dateStr) {
         ...r,
         status: r.status || 'done',
         wasPlanned: Boolean(r.wasPlanned),
+        blockedByRain: r.status === 'missed' ? Boolean(r.blockedByRain) : false,
         optionIds: Array.isArray(r.optionIds)
           ? r.optionIds
           : Array.isArray(r.muscleGroupIds)
@@ -378,6 +379,7 @@ export async function saveCompletion(record) {
     id,
     status: record.status || 'done',
     wasPlanned: Boolean(record.wasPlanned),
+    blockedByRain: (record.status || 'done') === 'missed' ? Boolean(record.blockedByRain) : false,
     optionIds: Array.isArray(record.optionIds) ? record.optionIds : [],
     note: typeof record.note === 'string' ? record.note.trim().slice(0, 500) : '',
   };
@@ -543,6 +545,7 @@ export async function getCompletionsForDateRange(startDateStr, endDateStr) {
         ...r,
         status: r.status || 'done',
         wasPlanned: Boolean(r.wasPlanned),
+        blockedByRain: r.status === 'missed' ? Boolean(r.blockedByRain) : false,
         optionIds: Array.isArray(r.optionIds)
           ? r.optionIds
           : Array.isArray(r.muscleGroupIds)

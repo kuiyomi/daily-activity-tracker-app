@@ -7,7 +7,7 @@
  * All URLs use relative paths to support GitHub Pages subpath deployment (/repo-name/).
  */
 
-const SW_VERSION = '0.16.0';
+const SW_VERSION = '0.17.0';
 
 importScripts('./src/version.js');
 
@@ -33,6 +33,7 @@ const PRECACHE_ASSETS = [
   './src/ui/dayDetailView.js',
   './src/ui/activitiesView.js',
   './src/ui/summaryView.js',
+  './src/ui/recordsView.js',
   './src/ui/settingsView.js',
   './src/ui/icons.js',
   './icons/icon-180.png',

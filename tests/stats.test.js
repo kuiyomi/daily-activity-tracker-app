@@ -9,6 +9,8 @@ import {
   computePlanStats,
   computeAdherence,
   computeMissedOnRainDays,
+  computeBlockedByRainCount,
+  computeImpededOptionsStats,
   computeMonthlyStats,
   computeActivityMonthlyStats,
   computeActivityOptionStats,
@@ -292,6 +294,102 @@ describe('10. Activity Notes for Month (newest first, empty notes filtered)', ()
   assertEqual(notes[0].note, 'Aumentei a carga no supino', 'Correct note content');
   assertEqual(notes[1].date, '2026-11-02', 'Second note is from 2026-11-02');
   assertEqual(notes[1].note, 'Treino leve com halteres', 'Correct note content');
+});
+
+describe('11. Blocked by rain count', () => {
+  const completions = [
+    { date: '2026-11-02', activityId: 'act_gym', status: 'missed', blockedByRain: true },
+    { date: '2026-11-04', activityId: 'act_run', status: 'missed', blockedByRain: true },
+    { date: '2026-11-05', activityId: 'act_gym', status: 'missed', blockedByRain: false },
+    { date: '2026-11-06', activityId: 'act_gym', status: 'done', blockedByRain: true }, // done should not count
+    { date: '2026-10-30', activityId: 'act_gym', status: 'missed', blockedByRain: true }, // outside month
+  ];
+
+  const count = computeBlockedByRainCount(completions, { year: 2026, month: 10 });
+  assertEqual(count, 2, '2 missed entries with blockedByRain in November 2026');
+});
+
+describe('12. Impeded options stats for "Por opção" card', () => {
+  const activities = [
+    {
+      id: 'act_caminhada',
+      name: 'Caminhada',
+      color: '#34c759',
+      icon: 'sneaker',
+      groups: [
+        {
+          id: 'grp_local',
+          name: 'Local',
+          options: [
+            { id: 'opt_parque', name: 'Parque' },
+            { id: 'opt_esteira', name: 'Esteira' },
+          ],
+        },
+      ],
+    },
+    {
+      id: 'act_academia',
+      name: 'Academia',
+      color: '#007aff',
+      icon: 'barbell',
+      groups: [
+        {
+          id: 'grp_muscles',
+          name: 'Grupos musculares',
+          options: [
+            { id: 'opt_peito', name: 'Peito' },
+            { id: 'opt_pernas', name: 'Pernas' },
+          ],
+        },
+      ],
+    },
+  ];
+
+  const completions = [
+    {
+      date: '2026-11-02',
+      activityId: 'act_caminhada',
+      status: 'missed',
+      blockedByRain: true,
+      optionIds: ['opt_parque'],
+    },
+    {
+      date: '2026-11-05',
+      activityId: 'act_caminhada',
+      status: 'missed',
+      blockedByRain: true,
+      optionIds: ['opt_parque'],
+    },
+    {
+      date: '2026-11-06',
+      activityId: 'act_academia',
+      status: 'missed',
+      blockedByRain: true,
+      optionIds: ['opt_peito'],
+    },
+    // Not blocked by rain
+    {
+      date: '2026-11-07',
+      activityId: 'act_caminhada',
+      status: 'missed',
+      blockedByRain: false,
+      optionIds: ['opt_esteira'],
+    },
+  ];
+
+  const result = computeImpededOptionsStats(completions, activities, { year: 2026, month: 10 });
+  assertEqual(result.length, 2, 'Two activities have impeded options');
+
+  const caminhada = result.find((r) => r.activityId === 'act_caminhada');
+  assert(Boolean(caminhada), 'Caminhada found in impeded stats');
+  assertEqual(caminhada.options.length, 1, 'Only Parque was selected');
+  assertEqual(caminhada.options[0].name, 'Parque', 'Option name is Parque');
+  assertEqual(caminhada.options[0].count, 2, 'Parque has count 2');
+
+  const academia = result.find((r) => r.activityId === 'act_academia');
+  assert(Boolean(academia), 'Academia found in impeded stats');
+  assertEqual(academia.options[0].name, 'Peito', 'Option name is Peito');
+  assertEqual(academia.options[0].count, 1, 'Peito has count 1');
 });
 
 console.log(`\nResults: ${passed} passed, ${failed} failed`);

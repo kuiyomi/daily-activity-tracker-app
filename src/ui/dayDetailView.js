@@ -198,7 +198,7 @@ export function renderActivityCheckRowHtml(act, compOrDone, subtitleText = '', o
   }
 
   const hasEntry = options.hasEntry !== undefined ? options.hasEntry : Boolean(comp || isDone);
-  const showNote = Boolean(act?.allowsNote && (isPlanned || (hasEntry && isDone)));
+  const showNote = Boolean(act?.allowsNote && (isPlanned || (hasEntry && (isDone || status === 'missed'))));
   const noteVal = options.note !== undefined ? options.note : (comp?.note || '');
   const noteHtml = showNote ? renderActivityNoteRowHtml(act, noteVal) : '';
   const chipsHtml = options.chipsHtml || '';
@@ -301,6 +301,164 @@ function renderChipsMarkup(act, selectedOptionIds = [], isVisible = false, nonAr
         .join('')}
     </div>
   `;
+}
+
+/**
+ * Opens the planned activity status action sheet.
+ * Can be called from dayDetailView or from recordsView (Registros list).
+ *
+ * @param {{
+ *   act: object,
+ *   comp: object,
+ *   dateStr: string,
+ *   isFuture?: boolean,
+ *   isDayRained?: boolean,
+ *   onResolve: (action: 'done' | 'missed' | 'revert' | 'remove', data: { note: string, blockedByRain: boolean }) => Promise<void> | void,
+ *   onClose?: () => void,
+ * }} params
+ */
+export function openPlannedStatusSheet({
+  act,
+  comp,
+  dateStr,
+  isFuture = false,
+  isDayRained = false,
+  onResolve,
+  onClose,
+}) {
+  const isResolved = comp.status === 'done' || comp.status === 'missed';
+  const isBlockedByRainPreset = comp.status === 'missed' ? Boolean(comp.blockedByRain || isDayRained) : Boolean(isDayRained);
+
+  const backdrop = document.createElement('div');
+  backdrop.className = 'ios-sheet-backdrop';
+  backdrop.id = 'plan-action-sheet';
+  backdrop.setAttribute('role', 'dialog');
+  backdrop.setAttribute('aria-modal', 'true');
+  backdrop.setAttribute('aria-label', `Opções para ${act.name}`);
+
+  const tabBar = document.querySelector('.ios-tab-bar');
+  if (tabBar) tabBar.classList.add('hidden');
+
+  backdrop.innerHTML = `
+    <div class="ios-action-sheet">
+      <div class="ios-action-sheet-group">
+        <div class="ios-action-sheet-header">
+          <h3 class="ios-action-sheet-title">${escapeHtml(act.name)}</h3>
+        </div>
+        ${
+          act.allowsNote
+            ? `
+              <div class="sheet-notes-container">
+                <label for="sheet-note-input" class="notes-label">Observação</label>
+                <textarea
+                  id="sheet-note-input"
+                  class="ios-textarea sheet-note-textarea"
+                  rows="2"
+                  placeholder="Escreva uma observação (opcional)"
+                  aria-label="Observação de ${escapeHtml(act.name)}"
+                  maxlength="500"
+                >${escapeHtml(comp.note || '')}</textarea>
+              </div>
+            `
+            : ''
+        }
+        ${
+          !isFuture
+            ? `
+              <div class="sheet-toggle-container">
+                <label class="toggle-row inset-row" for="sheet-rain-switch">
+                  <span class="toggle-label-title">Impedida pela chuva</span>
+                  <input
+                    type="checkbox"
+                    id="sheet-rain-switch"
+                    class="ios-switch"
+                    role="switch"
+                    aria-label="Impedida pela chuva"
+                    ${isBlockedByRainPreset ? 'checked' : ''}
+                  />
+                </label>
+              </div>
+            `
+            : ''
+        }
+        ${
+          isFuture
+            ? `<button type="button" class="ios-sheet-btn ios-sheet-btn--destructive" id="sheet-btn-remove">Remover do plano</button>`
+            : `
+              <button type="button" class="ios-sheet-btn ios-sheet-btn--done" id="sheet-btn-done">Feita</button>
+              <button type="button" class="ios-sheet-btn ios-sheet-btn--missed" id="sheet-btn-missed">Não feita</button>
+              ${isResolved ? `<button type="button" class="ios-sheet-btn ios-sheet-btn--neutral" id="sheet-btn-revert">Voltar para planejada</button>` : ''}
+              <button type="button" class="ios-sheet-btn ios-sheet-btn--destructive" id="sheet-btn-remove">Remover do plano</button>
+            `
+        }
+      </div>
+      <div class="ios-action-sheet-group">
+        <button type="button" class="ios-sheet-btn ios-sheet-btn--cancel" id="sheet-btn-cancel">Cancelar</button>
+      </div>
+    </div>
+  `;
+
+  const closeSheet = () => {
+    backdrop.remove();
+    if (tabBar) tabBar.classList.remove('hidden');
+    if (onClose) onClose();
+  };
+
+  const getSheetNote = () => {
+    const input = backdrop.querySelector('#sheet-note-input');
+    if (input) {
+      return input.value.trim().slice(0, 500);
+    }
+    return comp.note || '';
+  };
+
+  const getRainSwitchState = () => {
+    const sw = backdrop.querySelector('#sheet-rain-switch');
+    return Boolean(sw && sw.checked);
+  };
+
+  backdrop.querySelector('#sheet-btn-cancel').addEventListener('click', closeSheet);
+  backdrop.addEventListener('click', (e) => {
+    if (e.target === backdrop) closeSheet();
+  });
+
+  const removeBtn = backdrop.querySelector('#sheet-btn-remove');
+  if (removeBtn) {
+    removeBtn.addEventListener('click', async () => {
+      closeSheet();
+      await onResolve('remove', { note: getSheetNote(), blockedByRain: false });
+    });
+  }
+
+  const doneBtn = backdrop.querySelector('#sheet-btn-done');
+  if (doneBtn) {
+    doneBtn.addEventListener('click', async () => {
+      const note = getSheetNote();
+      closeSheet();
+      await onResolve('done', { note, blockedByRain: false });
+    });
+  }
+
+  const missedBtn = backdrop.querySelector('#sheet-btn-missed');
+  if (missedBtn) {
+    missedBtn.addEventListener('click', async () => {
+      const note = getSheetNote();
+      const blockedByRain = getRainSwitchState();
+      closeSheet();
+      await onResolve('missed', { note, blockedByRain });
+    });
+  }
+
+  const revertBtn = backdrop.querySelector('#sheet-btn-revert');
+  if (revertBtn) {
+    revertBtn.addEventListener('click', async () => {
+      const note = getSheetNote();
+      closeSheet();
+      await onResolve('revert', { note, blockedByRain: false });
+    });
+  }
+
+  document.body.appendChild(backdrop);
 }
 
 /**
@@ -474,150 +632,62 @@ export async function mountDayDetailView(root, dateStr, { onBack, onManageActivi
      * @param {object} comp
      */
     function openPlannedSheet(act, comp) {
-      const isResolved = comp.status === 'done' || comp.status === 'missed';
-
-      const backdrop = document.createElement('div');
-      backdrop.className = 'ios-sheet-backdrop';
-      backdrop.id = 'plan-action-sheet';
-      backdrop.setAttribute('role', 'dialog');
-      backdrop.setAttribute('aria-modal', 'true');
-      backdrop.setAttribute('aria-label', `Opções para ${act.name}`);
-
-      // Hide bottom tab bar while sheet is open
-      const tabBar = document.querySelector('.ios-tab-bar');
-      if (tabBar) tabBar.classList.add('hidden');
-
-      backdrop.innerHTML = `
-        <div class="ios-action-sheet">
-          <div class="ios-action-sheet-group">
-            <div class="ios-action-sheet-header">
-              <h3 class="ios-action-sheet-title">${escapeHtml(act.name)}</h3>
-            </div>
-            ${
-              act.allowsNote
-                ? `
-                  <div class="sheet-notes-container">
-                    <label for="sheet-note-input" class="notes-label">Observação</label>
-                    <textarea
-                      id="sheet-note-input"
-                      class="ios-textarea sheet-note-textarea"
-                      rows="2"
-                      placeholder="Escreva uma observação (opcional)"
-                      aria-label="Observação de ${escapeHtml(act.name)}"
-                      maxlength="500"
-                    >${escapeHtml(comp.note || '')}</textarea>
-                  </div>
-                `
-                : ''
+      openPlannedStatusSheet({
+        act,
+        comp,
+        dateStr,
+        isFuture,
+        isDayRained: rainedSwitch.checked,
+        onResolve: async (action, data) => {
+          if (action === 'remove') {
+            plannedToNone(comp);
+            completionMap.delete(act.id);
+            try {
+              await deleteCompletion(dateStr, act.id);
+            } catch (err) {
+              console.error('Erro ao remover do plano:', err);
             }
-            ${
-              isFuture
-                ? `<button type="button" class="ios-sheet-btn ios-sheet-btn--destructive" id="sheet-btn-remove">Remover do plano</button>`
-                : `
-                  <button type="button" class="ios-sheet-btn ios-sheet-btn--done" id="sheet-btn-done">Feita</button>
-                  <button type="button" class="ios-sheet-btn ios-sheet-btn--missed" id="sheet-btn-missed">Não feita</button>
-                  ${isResolved ? `<button type="button" class="ios-sheet-btn ios-sheet-btn--neutral" id="sheet-btn-revert">Voltar para planejada</button>` : ''}
-                  <button type="button" class="ios-sheet-btn ios-sheet-btn--destructive" id="sheet-btn-remove">Remover do plano</button>
-                `
+          } else if (action === 'done') {
+            try {
+              const updated = {
+                ...plannedToDone(comp, todayString()),
+                note: data.note,
+              };
+              completionMap.set(act.id, updated);
+              await saveCompletion(updated);
+            } catch (err) {
+              console.error('Erro ao marcar como feita:', err);
             }
-          </div>
-          <div class="ios-action-sheet-group">
-            <button type="button" class="ios-sheet-btn ios-sheet-btn--cancel" id="sheet-btn-cancel">Cancelar</button>
-          </div>
-        </div>
-      `;
-
-      const closeSheet = () => {
-        backdrop.remove();
-        if (tabBar) tabBar.classList.remove('hidden');
-      };
-
-      const getSheetNote = () => {
-        const input = backdrop.querySelector('#sheet-note-input');
-        if (input) {
-          return input.value.trim().slice(0, 500);
-        }
-        return comp.note || '';
-      };
-
-      backdrop.querySelector('#sheet-btn-cancel').addEventListener('click', closeSheet);
-      backdrop.addEventListener('click', (e) => {
-        if (e.target === backdrop) closeSheet();
+          } else if (action === 'missed') {
+            try {
+              const updated = {
+                ...plannedToMissed(comp, todayString(), { blockedByRain: data.blockedByRain }),
+                note: data.note,
+              };
+              completionMap.set(act.id, updated);
+              await saveCompletion(updated);
+              if (data.blockedByRain) {
+                await setDayRained(dateStr, true);
+                rainedSwitch.checked = true;
+              }
+            } catch (err) {
+              console.error('Erro ao marcar como não feita:', err);
+            }
+          } else if (action === 'revert') {
+            try {
+              const updated = {
+                ...resolvedToPlanned(comp, todayString()),
+                note: data.note,
+              };
+              completionMap.set(act.id, updated);
+              await saveCompletion(updated);
+            } catch (err) {
+              console.error('Erro ao voltar para planejada:', err);
+            }
+          }
+          renderSections();
+        },
       });
-
-      const removeBtn = backdrop.querySelector('#sheet-btn-remove');
-      if (removeBtn) {
-        removeBtn.addEventListener('click', async () => {
-          closeSheet();
-          plannedToNone(comp);
-          completionMap.delete(act.id);
-          try {
-            await deleteCompletion(dateStr, act.id);
-          } catch (err) {
-            console.error('Erro ao remover do plano:', err);
-          }
-          renderSections();
-        });
-      }
-
-      const doneBtn = backdrop.querySelector('#sheet-btn-done');
-      if (doneBtn) {
-        doneBtn.addEventListener('click', async () => {
-          const note = getSheetNote();
-          closeSheet();
-          try {
-            const updated = {
-              ...plannedToDone(comp, todayString()),
-              note,
-            };
-            completionMap.set(act.id, updated);
-            await saveCompletion(updated);
-          } catch (err) {
-            console.error('Erro ao marcar como feita:', err);
-          }
-          renderSections();
-        });
-      }
-
-      const missedBtn = backdrop.querySelector('#sheet-btn-missed');
-      if (missedBtn) {
-        missedBtn.addEventListener('click', async () => {
-          const note = getSheetNote();
-          closeSheet();
-          try {
-            const updated = {
-              ...plannedToMissed(comp, todayString()),
-              note,
-            };
-            completionMap.set(act.id, updated);
-            await saveCompletion(updated);
-          } catch (err) {
-            console.error('Erro ao marcar como não feita:', err);
-          }
-          renderSections();
-        });
-      }
-
-      const revertBtn = backdrop.querySelector('#sheet-btn-revert');
-      if (revertBtn) {
-        revertBtn.addEventListener('click', async () => {
-          const note = getSheetNote();
-          closeSheet();
-          try {
-            const updated = {
-              ...resolvedToPlanned(comp, todayString()),
-              note,
-            };
-            completionMap.set(act.id, updated);
-            await saveCompletion(updated);
-          } catch (err) {
-            console.error('Erro ao voltar para planejada:', err);
-          }
-          renderSections();
-        });
-      }
-
-      document.body.appendChild(backdrop);
     }
 
     /**
@@ -657,7 +727,7 @@ export async function mountDayDetailView(root, dateStr, { onBack, onManageActivi
               subtitleHtml = escapeHtml(optText);
             }
 
-            const showChips = status === 'planned' || status === 'done';
+            const showChips = status === 'planned' || status === 'done' || status === 'missed';
             const nonArchivedGroups = Array.isArray(act.groups)
               ? act.groups.filter((g) => !g.archived)
               : [];

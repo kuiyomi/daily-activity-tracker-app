@@ -2745,4 +2745,111 @@ button.inset-row:active {
   color: #ffffff;
 }
 
+/* ── Status Sheet Switch Row ───────────────────────────────── */
+.sheet-toggle-container {
+  border-bottom: 0.5px solid var(--separator);
+}
+
+.sheet-toggle-container .inset-row {
+  border-bottom: none;
+  padding: 0.75rem 1rem;
+}
+
+/* ── Registros Screen & Summary Plan Rows ──────────────────── */
+.summary-plan-row.is-interactive {
+  width: 100%;
+  border: none;
+  text-align: left;
+  font: inherit;
+  cursor: pointer;
+}
+
+.summary-plan-value-wrap {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+}
+
+.records-screen-content {
+  padding-bottom: calc(2rem + env(safe-area-inset-bottom));
+}
+
+.records-header-count {
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+  text-align: center;
+  padding: 0.5rem 1rem 0.25rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-weight: 500;
+}
+
+.records-loading {
+  padding: 2rem 1rem;
+  text-align: center;
+}
+
+.record-item-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  cursor: pointer;
+  min-height: 48px;
+  width: 100%;
+  text-align: left;
+}
+
+.record-row-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.record-row-name {
+  font-size: 1rem;
+  color: var(--text-primary);
+  font-weight: 400;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.record-row-secondary {
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.record-row-trailing {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.records-act-header-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background-color: var(--fill-quaternary, rgba(120, 120, 128, 0.06));
+}
+
+.records-act-name {
+  font-size: 1rem;
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+.records-option-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-left: 1.5rem;
+}
+
+
 

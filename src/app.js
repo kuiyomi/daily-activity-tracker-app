@@ -8,6 +8,7 @@ import { mountCalendarView } from './ui/calendarView.js';
 import { mountDayDetailView } from './ui/dayDetailView.js';
 import { mountActivitiesView } from './ui/activitiesView.js';
 import { mountSummaryView, mountSummaryActivityView } from './ui/summaryView.js';
+import { mountRecordsView } from './ui/recordsView.js';
 import { mountSettingsView } from './ui/settingsView.js';
 import { ICONS } from './ui/icons.js';
 import './version.js';
@@ -299,6 +300,20 @@ function showSummary(motion = 'fade', options = {}) {
     initialMonth: options?.month,
     onDaySelect: (dateStr) => showDayDetail(dateStr, { fromTab: 'resumo' }),
     onActivitySelect: (activityId, context) => showSummaryActivityDetail(activityId, context),
+    onOpenRecords: (filter) => showRecords(filter, { fromTab: 'resumo', year: options?.year, month: options?.month }),
+  }), motion);
+}
+
+function showRecords(filter, options = {}, motion = 'day-forward') {
+  const fromTab = options.fromTab || 'resumo';
+  const onBack = options.onBack || (() => showSummary('day-back', { year: filter.year, month: filter.month }));
+  return navigate(fromTab, (layer) => mountRecordsView(layer, {
+    filter,
+    onBack,
+    onDaySelect: (dateStr) => showDayDetail(dateStr, {
+      fromTab,
+      onBack: () => showRecords(filter, options, 'day-back'),
+    }),
   }), motion);
 }
 
